@@ -103,6 +103,32 @@
 
     <view class="card">
         <view class="card-head">
+            <text class="card-title">本地数据备份</text>
+            <text class="card-tag">自动</text>
+        </view>
+        <view class="card-desc">
+            复盘记录、净空单历史、看盘配置、自选这些「只在本机算出来」的数据，每次改动都会自动写一份 JSON 到本机文件。重新发布小程序、清缓存、切换开发版/体验版之后，打开就能自动找回，也可以手动恢复。
+        </view>
+
+        <view class="bk-row">
+            <text class="bk-k">备份状态</text>
+            <text class="bk-v">{{vaultText}}</text>
+        </view>
+        <view class="bk-row">
+            <text class="bk-k">文件位置</text>
+            <text class="bk-v num bk-path">{{vaultPath}}</text>
+        </view>
+
+        <view class="bk-btns">
+            <view class="bk-btn" bindtap="vaultBackup">立即备份</view>
+            <view class="bk-btn" bindtap="vaultRestore">从备份恢复</view>
+            <view class="bk-btn" bindtap="vaultCopy">复制备份文本</view>
+            <view class="bk-btn" bindtap="vaultPaste">从剪贴板恢复</view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
             <text class="card-title">网络自检</text>
             <text class="card-tag">域名</text>
         </view>

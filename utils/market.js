@@ -226,6 +226,7 @@ function fetchTencent() {
 // ---------------- 搜索 / 单个报价（手动添加自选用） ----------------
 
 var SEARCH_URL = 'https://searchapi.eastmoney.com/api/suggest/get';
+var SEARCH_TOKEN = 'D43BF722C8E33BDC906FB84D85E326E8';
 var QUOTE_FIELDS = 'f57,f58,f59,f43,f44,f45,f46,f47,f48,f60,f169,f170';
 
 /** 排序权重：代码/名称精确命中的排前面，主流市场优先于三板等冷门市场 */
@@ -248,12 +249,8 @@ function rankOf(it, input) {
 function searchSymbol(kw) {
     var input = String(kw || '').trim();
     if (!input) return Promise.resolve([]);
-    var searchToken = String(wx.getStorageSync('marketSearchToken') || '').trim();
-    if (!searchToken) {
-        return Promise.reject(new Error('请先在本地配置行情搜索令牌（marketSearchToken）'));
-    }
     var url = SEARCH_URL + '?input=' + encodeURIComponent(input) +
-        '&type=14&token=' + encodeURIComponent(searchToken) + '&count=12';
+        '&type=14&token=' + SEARCH_TOKEN + '&count=12';
     return req({ url: url, timeout: 6000 }).then(function (payload) {
         var table = payload && payload.QuotationCodeTable;
         var data = (table && table.Data) || [];

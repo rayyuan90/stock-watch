@@ -305,3 +305,57 @@
     font-size: 18rpx;
     color: #5f6c7d;
 }
+
+/* ---- 本地数据备份 ---- */
+.bk-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20rpx;
+    padding: 14rpx 0;
+    border-bottom: 1rpx solid rgba(255, 255, 255, 0.05);
+}
+
+.bk-k {
+    font-size: 21rpx;
+    color: #5f6c7d;
+    flex: 0 0 auto;
+}
+
+.bk-v {
+    font-size: 21rpx;
+    color: #d6dde7;
+    text-align: right;
+    flex: 1 1 auto;
+    white-space: pre-line;
+    line-height: 1.5;
+}
+
+.bk-path {
+    font-size: 18rpx;
+    color: #6b7a8d;
+    word-break: break-all;
+    line-height: 1.5;
+}
+
+.bk-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14rpx;
+    margin-top: 18rpx;
+}
+
+.bk-btn {
+    flex: 1 1 44%;
+    padding: 16rpx 0;
+    text-align: center;
+    border-radius: 14rpx;
+    background: rgba(106, 169, 233, 0.14);
+    border: 1rpx solid rgba(106, 169, 233, 0.3);
+    font-size: 22rpx;
+    color: #8fc0f0;
+}
+
+.bk-btn:active {
+    background: rgba(106, 169, 233, 0.26);
+}

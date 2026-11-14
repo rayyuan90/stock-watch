@@ -6,6 +6,7 @@
 var KEY = 'kanpan:watch';
 var META_KEY = 'kanpan:watchMeta';
 var MAX = 20;
+var vault = require('./vault');
 
 function normalize(item) {
     if (!item) return null;
@@ -38,6 +39,7 @@ function save(list, quiet) {
     }
     var sliced = out.slice(0, MAX);
     wx.setStorageSync(KEY, sliced);
+    try { vault.touch('watch'); } catch (e) { /* ignore */ }
     // quiet=true 表示这次是云端回写，不算本地改动
     if (!quiet) {
         var m = {};

@@ -2,6 +2,7 @@ var fmt = require('../../utils/format');
 var cloudData = require('../../utils/cloudData');
 var watchSync = require('../../utils/watchSync');
 var market = require('../../utils/market');
+var vault = require('../../utils/vault');
 
 var CONFIG_KEY = 'kanpan:config';
 var HISTORY_KEY = 'kanpan:posHistory';
@@ -27,7 +28,110 @@ Page({
         loggingIn: false,
         loginError: '',
         diag: null,
-        diagRunning: false
+        diagRunning: false,
+        vaultText: '',
+        vaultPath: '',
+        vaultBusy: false
+    },
+
+    // ---------- 本地数据备份（vault） ----------
+
+    fmtAt: function (iso) {
+        if (!iso) return '--';
+        return String(iso).replace('T', ' ').slice(0, 16);
+    },
+
+    refreshVault: function () {
+        var st = vault.status();
+        var text;
+        if (st.exists) text = '本机文件 ' + st.rows + ' 条 · ' + this.fmtAt(st.at);
+        else if (st.hasFs) text = '还没有备份文件（改动一次即自动写入）';
+        else text = '本机无文件系统，已改用云端整包备份';
+        if (st.cloudRows) text += '\n云端 ' + st.cloudRows + ' 条 · ' + this.fmtAt(st.cloudAt);
+        this.setData({ vaultText: text, vaultPath: st.path });
+    },
+
+    /** 立即把本机数据写一份（本机文件 + 云端整包） */
+    vaultBackup: function () {
+        var self = this;
+        var snap = vault.flush('manual');
+        if (!snap) {
+            wx.showToast({ title: '没有可备份的数据', icon: 'none' });
+            return;
+        }
+        self.refreshVault();
+        wx.showToast({
+            title: snap.fileOk ? '已写本机文件 ' + snap.rows + ' 条' : '已存云端 ' + snap.rows + ' 条',
+            icon: 'none',
+            duration: 2000
+        });
+    },
+
+    /** 恢复：先读本机文件，没东西再拉云端整包快照 */
+    vaultRestore: function () {
+        var self = this;
+        if (this.data.vaultBusy) return;
+        this.setData({ vaultBusy: true });
+        var res = vault.restore({ push: true });
+        var done = function (r) {
+            self.setData({ vaultBusy: false });
+            self.refreshVault();
+            var msg = '找回 ' + (r.restored || 0) + ' 项，补全 ' + (r.merged || 0) + ' 项';
+            if (!r.restored && !r.merged) msg = r.error || '没有可恢复的数据';
+            wx.showToast({ title: msg, icon: 'none', duration: 2200 });
+            var ch = self.getOpenerEventChannel && self.getOpenerEventChannel();
+            if (ch && ch.emit) ch.emit('saved', null);
+        };
+        if (res && (res.restored || res.merged)) {
+            done(res);
+            return;
+        }
+        vault.cloudRestore().then(function (r) {
+            done(r && r.error ? r : (r || { restored: 0, merged: 0, error: '云端也没有备份' }));
+        }).catch(function () {
+            done(res || { restored: 0, merged: 0, error: '恢复失败' });
+        });
+    },
+
+    /** 导出一份 JSON 到剪贴板（换手机/留档用） */
+    vaultCopy: function () {
+        var self = this;
+        var text = vault.exportText();
+        wx.setClipboardData({
+            data: text,
+            success: function () {
+                self.refreshVault();
+                wx.showToast({ title: '已复制备份文本', icon: 'success' });
+            },
+            fail: function () {
+                wx.showToast({ title: '复制失败', icon: 'none' });
+            }
+        });
+    },
+
+    /** 从剪贴板恢复（把之前复制的备份粘回来） */
+    vaultPaste: function () {
+        var self = this;
+        wx.getClipboardData({
+            success: function (r) {
+                var res = vault.importText(r && r.data);
+                self.refreshVault();
+                if (!res.ok) {
+                    wx.showToast({ title: res.error || '恢复失败', icon: 'none' });
+                    return;
+                }
+                wx.showToast({
+                    title: '找回 ' + (res.restored || 0) + ' 项，补全 ' + (res.merged || 0) + ' 项',
+                    icon: 'none',
+                    duration: 2200
+                });
+                var ch = self.getOpenerEventChannel && self.getOpenerEventChannel();
+                if (ch && ch.emit) ch.emit('saved', null);
+            },
+            fail: function () {
+                wx.showToast({ title: '读剪贴板失败', icon: 'none' });
+            }
+        });
     },
 
     /** 逐个探测域名，判断是不是被白名单拦了 */
@@ -80,6 +184,7 @@ Page({
             today: today
         });
         this.checkCloud();
+        this.refreshVault();
     },
 
     checkCloud: function () {
@@ -203,6 +308,9 @@ Page({
 
         var ch = this.getOpenerEventChannel && this.getOpenerEventChannel();
         if (ch && ch.emit) ch.emit('saved', cfg);
+
+        // 配置与净空单历史都是本机算出来的，立刻落一份到本地文件
+        try { vault.flush('setup'); } catch (e) { /* ignore */ }
 
         wx.showToast({ title: '已保存', icon: 'success', duration: 800 });
         setTimeout(function () {

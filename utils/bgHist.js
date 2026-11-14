@@ -7,6 +7,7 @@
  * 本地 storage 最多 180 条 × 每天两条(a/us)
  */
 var cloudData = require('./cloudData');
+var vault = require('./vault');
 
 var KEY = 'kanpan:bgHist';
 var MAX = 180;
@@ -25,6 +26,8 @@ function load() {
 function save(list) {
     var out = list.slice(-MAX);
     wx.setStorageSync(KEY, out);
+    // 本地文件镜像：重新发布/清缓存后由 vault 启动回灌
+    try { vault.touch('bgHist'); } catch (e) { /* ignore */ }
     return out;
 }
 
@@ -113,7 +116,12 @@ function push(ymd, model) {
         m: row.m,
         quad: row.quad,
         actual_pct: row.actual
-    }).catch(function () { });
+    }).then(function (res) {
+        // 云端失败不再完全静默：以前 select('id') 的列不存在错误就是这样被吞掉的
+        if (res && !res.ok) console.warn('[bgHist] 云端写入失败：', res.error);
+    }).catch(function (e) {
+        console.warn('[bgHist] 云端写入异常：', (e && e.message) || e);
+    });
 }
 
 /** 启动时与云端合并：云端有本地没有的补进来；云端已评分而本地未评分的采纳真实值 */
@@ -122,9 +130,11 @@ function sync() {
         if (!res || !res.ok || !Array.isArray(res.data)) return load();
         var list = load();
         var dirty = false;
+        var cloudKeys = {};
         for (var i = 0; i < res.data.length; i++) {
             var c = res.data[i];
             if (!c || !c.ymd || !c.model) continue;
+            cloudKeys[c.ymd + '|' + c.model] = 1;
             var local = find(list, c.ymd, c.model);
             var cActual = c.actual_pct === null || c.actual_pct === undefined ? null : Number(c.actual_pct);
             if (!local) {
@@ -145,7 +155,14 @@ function sync() {
             }
         }
         if (dirty) save(list);
-        return load();
+        // 云端缺的本地记录补推一次：历史上云端写入失败（select('id') 列不存在）
+        // 留下的空洞，靠这一步在下次启动时自动补齐
+        var finalList = load();
+        for (var m = 0; m < finalList.length; m++) {
+            var fr = finalList[m];
+            if (!cloudKeys[fr.ymd + '|' + fr.model]) push(fr.ymd, fr.model);
+        }
+        return finalList;
     }).catch(function () {
         return load();
     });

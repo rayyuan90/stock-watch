@@ -71,6 +71,99 @@ def _rank_of(series: List[float], value: float) -> float:
 
 
 # ============================================================
+# 东财 datacenter 通用抓取 (卖压 G 三个通道的真数据源, 不依赖 akshare)
+# ============================================================
+_EM_DC = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+
+
+def _em_get(params: dict, timeout: int = 20) -> dict:
+    import json
+    import urllib.parse
+    import urllib.request
+
+    url = _EM_DC + "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Referer": "https://data.eastmoney.com/",
+    })
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "ignore"))
+
+
+def _next_trading_days(n: int = 5):
+    """从今天(含)起, 往后数 n 个交易日(跳过周末; 不含法定节假日日历)"""
+    from datetime import date, timedelta
+
+    out, cur = [], date.today()
+    while len(out) < n:
+        if cur.weekday() < 5:
+            out.append(cur)
+        cur += timedelta(days=1)
+    return out
+
+
+def _fetch_unlock_5d() -> Tuple[float, int, str]:
+    """未来 5 个交易日内的限售解禁市值合计.
+
+    RPT_LIFT_STAGE.LIFT_MARKET_CAP 单位为万元 -> 除以 1e4 得亿元.
+    返回 (亿元, 条数, 日期区间说明)
+    """
+    days = _next_trading_days(5)
+    start, end = days[0].isoformat(), days[-1].isoformat()
+    total, n, page = 0.0, 0, 1
+    while page <= 6:
+        d = _em_get({
+            "reportName": "RPT_LIFT_STAGE",
+            "columns": "SECURITY_CODE,FREE_DATE,LIFT_MARKET_CAP",
+            "filter": f"(FREE_DATE>='{start}')(FREE_DATE<='{end}')",
+            "pageNumber": page, "pageSize": 500,
+            "sortColumns": "FREE_DATE", "sortTypes": 1,
+            "source": "WEB", "client": "WEB",
+        })
+        res = d.get("result") or {}
+        rows = res.get("data") or []
+        for r in rows:
+            total += float(r.get("LIFT_MARKET_CAP") or 0)
+            n += 1
+        if page >= int(res.get("pages") or 1):
+            break
+        page += 1
+    return total / 1e4, n, f"{start}~{end}"
+
+
+def _fetch_reduce_20d() -> Tuple[float, int, str]:
+    """近 20 个自然日「董监高及关联人」净减持金额 (亿元, 负数=净减持).
+
+    口径说明: 东财 RPT_EXECUTIVE_HOLD_DETAILS 只覆盖高管/关联人变动,
+    不含 5% 以上大股东的大宗减持, 因此数值远小于全市场真实减持规模,
+    作为「卖压方向」的代理足够, 但不可当绝对规模用.
+    """
+    from datetime import date, timedelta
+
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=20)).isoformat()
+    net, n, page = 0.0, 0, 1
+    while page <= 8:
+        d = _em_get({
+            "reportName": "RPT_EXECUTIVE_HOLD_DETAILS",
+            "columns": "CHANGE_DATE,CHANGE_AMOUNT,CHANGE_SHARES",
+            "filter": f"(CHANGE_DATE>='{start}')(CHANGE_DATE<='{end}')",
+            "pageNumber": page, "pageSize": 500,
+            "sortColumns": "CHANGE_DATE", "sortTypes": -1,
+            "source": "WEB", "client": "WEB",
+        })
+        res = d.get("result") or {}
+        rows = res.get("data") or []
+        for r in rows:
+            net += float(r.get("CHANGE_AMOUNT") or 0)
+            n += 1
+        if page >= int(res.get("pages") or 1):
+            break
+        page += 1
+    return net / 1e8, n, f"{start}~{end}"
+
+
+# ============================================================
 # 抓取器
 # ============================================================
 @dataclass
@@ -249,14 +342,53 @@ def fetch_latest(policy_stack: Optional[List[PolicyVector]] = None,
         d.etf_sub_rank = 50.0
         q["宽基ETF"] = f"FAIL {type(e).__name__}, 置中性"
 
-    # ---------- 5. 公募仓位 / 卖压: 免费源无日频, 置中性并标注 ----------
+    # ---------- 5. 卖压层 G: 解禁 / 减持 / 强平 / 获利盘 ----------
+    # 5-1 解禁 (东财 RPT_LIFT_STAGE, 未来 5 个交易日)
+    try:
+        unlock_yi, unlock_n, unlock_span = _fetch_unlock_5d()
+        d.unlock_5d_rank = max(0.0, min(100.0, unlock_yi / 600.0 * 100.0))  # 600亿/5日 -> 满分
+        raw["unlock_5d_yi"] = unlock_yi
+        raw["unlock_5d_rank"] = d.unlock_5d_rank
+        raw["unlock_5d_span"] = unlock_span
+        raw["unlock_5d_n"] = unlock_n
+        q["解禁(未来5日)"] = f"ok({unlock_n}条, {unlock_yi:.0f}亿)"
+    except Exception as e:
+        d.unlock_5d_rank = 50.0
+        q["解禁(未来5日)"] = f"FAIL {type(e).__name__}, 置中性"
+
+    # 5-2 减持 (东财 RPT_EXECUTIVE_HOLD_DETAILS, 近20日董监高及关联人净额)
+    try:
+        reduce_yi, reduce_n, reduce_span = _fetch_reduce_20d()
+        # 净额 -20亿 -> 100 分(极端抛压); 0 -> 50; 净增持 -> <50
+        d.reduce_amt_rank = max(0.0, min(100.0, 50.0 - reduce_yi * 2.5))
+        raw["reduce_20d_yi"] = reduce_yi
+        raw["reduce_amt_rank"] = d.reduce_amt_rank
+        raw["reduce_20d_span"] = reduce_span
+        raw["reduce_20d_n"] = reduce_n
+        q["减持(近20日)"] = f"ok({reduce_n}条, 净{reduce_yi:+.2f}亿)"
+    except Exception as e:
+        d.reduce_amt_rank = 50.0
+        q["减持(近20日)"] = f"FAIL {type(e).__name__}, 置中性"
+
+    # 5-3 获利盘浮盈: 20日乖离率代理 (close/MA20-1). 浮盈越多, 兑现卖压越大
+    try:
+        _c = float(raw["index_close"])
+        _ma20 = float(raw["ma20"])
+        dev = _c / _ma20 - 1.0 if _ma20 else 0.0
+        d.profit_float_rank = max(0.0, min(100.0, 50.0 + dev * 100.0 * 4.0))
+        raw["profit_float_rank"] = d.profit_float_rank
+        raw["dev_ma20_pct"] = dev * 100.0
+        q["获利盘(乖离代理)"] = f"ok(20日乖离{dev*100:+.2f}%)"
+    except Exception:
+        d.profit_float_rank = 50.0
+        q["获利盘(乖离代理)"] = "无指数数据, 置中性"
+
+    # 5-4 公募仓位 (季频, 无日频免费源) 与 强平压力(两融代理) 保持原逻辑
     d.fund_equity_rank = raw.get("fund_equity_rank", 50.0)
     # 强平压力: 两融连续净流出越多, 压力越大 (阈值按全市场口径, 单日-100亿以上开始计入)
     d.margin_force_rank = 50.0 if d.d_margin >= -100 else min(100.0, 50 + (-d.d_margin - 100) / 5)
-    d.unlock_5d_rank = 50.0
-    d.reduce_amt_rank = 50.0
-    d.profit_float_rank = raw.get("profit_float_rank", 50.0)
-    q["公募仓位/解禁/减持/浮盈"] = "无免费日频源, 置中性(需手工覆盖)"
+    raw["margin_force_rank"] = d.margin_force_rank
+    q["公募仓位"] = "季频无日频源, 置中性(仅影响 P, 不影响 G)"
 
     # NaN 兜底: 任何漏网的 nan 都会污染分位计算, 统一清成中性值
     import math

@@ -48,9 +48,13 @@ def build_upsert_sql(ymd, d, raw, policy=None):
     p_json = json.dumps(policy or [], ensure_ascii=False).replace("'", "''")
     margin_ok = not _degraded(d.data_quality, "两融(沪)")
     etf_ok = not _degraded(d.data_quality, "宽基ETF")
+    unlock_ok = not _degraded(d.data_quality, "解禁(未来5日)")
+    reduce_ok = not _degraded(d.data_quality, "减持(近20日)")
     cols = ("ymd, d_margin, margin_pct_rank, big_order_net, big_order_net_rank, "
             "north_net_rank, etf_sub_rank, etf_net_subscribe, limit_up_cnt, "
-            "max_board, broken_rate, up_ratio_rank, amt_yi, quality, policy_json, updated_at")
+            "max_board, broken_rate, up_ratio_rank, amt_yi, "
+            "unlock_5d_yi, unlock_5d_rank, reduce_20d_yi, reduce_amt_rank, "
+            "margin_force_rank, profit_float_rank, quality, policy_json, updated_at")
     vals = (
         "'" + ymd + "', "
         + (_num(d.d_margin) if margin_ok else "NULL") + ", "
@@ -65,6 +69,12 @@ def build_upsert_sql(ymd, d, raw, policy=None):
         + _num(d.broken_rate) + ", "
         + _num(d.up_ratio_rank) + ", "
         + _num(raw.get("amount_yi")) + ", "
+        + (_num(raw.get("unlock_5d_yi")) if unlock_ok else "NULL") + ", "
+        + (_num(d.unlock_5d_rank) if unlock_ok else "NULL") + ", "
+        + (_num(raw.get("reduce_20d_yi")) if reduce_ok else "NULL") + ", "
+        + (_num(d.reduce_amt_rank) if reduce_ok else "NULL") + ", "
+        + _num(d.margin_force_rank) + ", "
+        + _num(d.profit_float_rank) + ", "
         + "'" + q_json + "', "
         + "'" + p_json + "', now()"
     )
@@ -81,6 +91,12 @@ def build_upsert_sql(ymd, d, raw, policy=None):
         "broken_rate=EXCLUDED.broken_rate",
         "up_ratio_rank=EXCLUDED.up_ratio_rank",
         "amt_yi=EXCLUDED.amt_yi",
+        "unlock_5d_yi=EXCLUDED.unlock_5d_yi",
+        "unlock_5d_rank=EXCLUDED.unlock_5d_rank",
+        "reduce_20d_yi=EXCLUDED.reduce_20d_yi",
+        "reduce_amt_rank=EXCLUDED.reduce_amt_rank",
+        "margin_force_rank=EXCLUDED.margin_force_rank",
+        "profit_float_rank=EXCLUDED.profit_float_rank",
         "quality=EXCLUDED.quality",
         "policy_json=EXCLUDED.policy_json",
         "updated_at=now()",

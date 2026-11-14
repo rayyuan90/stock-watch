@@ -369,6 +369,7 @@
                         <view class="bg-bmid"></view>
                     </view>
                     <text class="bg-bval num">{{item.text}}</text>
+                    <text class="bg-bnote" wx:if="{{item.note}}">{{item.note}}</text>
                 </view>
             </view>
 
@@ -397,7 +398,7 @@
             </view>
 
             <view class="bg-note">
-                <text>{{aGame.date}} 收盘数据 · 情绪=东财涨停池实数；两融/大单/ETF由每交易日收盘后自动化任务写入云端，未回填时置中性</text>
+                <text>{{aGame.date}} 收盘数据 · 情绪=涨停池实数（直连不通时用云端收盘值）；卖压=解禁/高管减持/两融强平/20日乖离四通道；两融·ETF未回填时置中性</text>
                 <text>{{'\n'}}参考幅度（连续模型口径，脉冲市里置信度低，仅记录用）：{{aGame.predText}}</text>
                 <text wx:if="{{aGame.gateScore < 6}}">{{'\n'}}门禁未全亮 → 明日实操按「只看不买 / 借反抽减仓」执行；出现脉冲放量也不追，等 T+1 不反杀再谈</text>
                 <text wx:else>{{'\n'}}门禁全亮 → 可按计划仓位 1/3 小仓试错，止损设前低下方 1%</text>

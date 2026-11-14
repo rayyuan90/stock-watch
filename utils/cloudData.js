@@ -310,8 +310,9 @@ function saveBgamePred(row) {
         actual_pct: row.actual_pct === undefined || row.actual_pct === null ? null : toNum(row.actual_pct),
         updated_at: new Date().toISOString()
     };
+    // 注意：bgame_pred 没有 id 列，主键是 (ymd, model)，所以判重/更新都只能用业务键
     return cloud.database.from('bgame_pred')
-        .select('id')
+        .select('ymd')
         .eq('ymd', row.ymd)
         .eq('model', row.model)
         .limit(1)
@@ -320,7 +321,8 @@ function saveBgamePred(row) {
             if (err) return { ok: false, data: null, error: err };
             var existing = res && res.data && res.data[0];
             var q = existing
-                ? cloud.database.from('bgame_pred').update(data).eq('id', existing.id).select()
+                ? cloud.database.from('bgame_pred').update(data)
+                    .eq('ymd', row.ymd).eq('model', row.model).select()
                 : cloud.database.from('bgame_pred').insert(data).select();
             return q.then(function (r2) {
                 var e2 = pickError(r2);
@@ -362,8 +364,9 @@ function saveSigHist(row) {
         breadth: row.breadth || '',
         updated_at: new Date().toISOString()
     };
+    // sig_hist 同样没有 id 列，主键是 ymd
     return cloud.database.from('sig_hist')
-        .select('id')
+        .select('ymd')
         .eq('ymd', row.ymd)
         .limit(1)
         .then(function (res) {
@@ -371,7 +374,7 @@ function saveSigHist(row) {
             if (err) return { ok: false, data: null, error: err };
             var existing = res && res.data && res.data[0];
             var q = existing
-                ? cloud.database.from('sig_hist').update(data).eq('id', existing.id).select()
+                ? cloud.database.from('sig_hist').update(data).eq('ymd', row.ymd).select()
                 : cloud.database.from('sig_hist').insert(data).select();
             return q.then(function (r2) {
                 var e2 = pickError(r2);
@@ -388,7 +391,7 @@ function saveSigHist(row) {
 function loadAInputExt() {
     if (!cloud) return unavailable();
     return cloud.database.from('a_input_ext')
-        .select('ymd, d_margin, margin_pct_rank, big_order_net, big_order_net_rank, north_net_rank, etf_sub_rank, etf_net_subscribe, limit_up_cnt, max_board, broken_rate, up_ratio_rank, amt_yi, quality, policy_json, updated_at')
+        .select('ymd, d_margin, margin_pct_rank, big_order_net, big_order_net_rank, north_net_rank, etf_sub_rank, etf_net_subscribe, limit_up_cnt, max_board, broken_rate, up_ratio_rank, amt_yi, unlock_5d_yi, unlock_5d_rank, reduce_20d_yi, reduce_amt_rank, margin_force_rank, profit_float_rank, quality, policy_json, updated_at')
         .order('ymd', { ascending: false })
         .limit(5)
         .then(function (res) {
@@ -399,6 +402,50 @@ function loadAInputExt() {
         .catch(function (e) {
             return { ok: false, data: null, error: (e && e.message) || '读取每日模型输入失败' };
         });
+}
+
+/** 读取本地数据仓的云端副本（整包快照，兜底用） */
+function loadVaultBackup() {
+    if (!cloud) return unavailable();
+    return cloud.database.from('vault_backup')
+        .select('payload, row_cnt, saved_at')
+        .eq('id', 1)
+        .maybeSingle()
+        .then(function (res) {
+            var err = pickError(res);
+            if (err) return { ok: false, data: null, error: err };
+            var row = res && res.data;
+            if (!row || !row.payload) return { ok: false, data: null, error: '云端暂无备份' };
+            return {
+                ok: true,
+                data: {
+                    payload: row.payload,
+                    rows: row.row_cnt || 0,
+                    savedAt: row.saved_at || ''
+                },
+                error: ''
+            };
+        })
+        .catch(function (e) {
+            return { ok: false, data: null, error: (e && e.message) || '读取云端备份失败' };
+        });
+}
+
+/** 写入本地数据仓的云端副本（整包快照，id 固定 1） */
+function saveVaultBackup(snap) {
+    if (!cloud) return unavailable();
+    if (!snap || !snap.keys) return Promise.resolve({ ok: false, data: null, error: '无内容' });
+    return cloud.database.from('vault_backup').upsert({
+        id: 1,
+        payload: snap.keys,
+        row_cnt: snap.rows || 0,
+        saved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    }).then(function (res) {
+        return { ok: !pickError(res), data: null, error: pickError(res) };
+    }).catch(function (e) {
+        return { ok: false, data: null, error: (e && e.message) || '写入云端备份失败' };
+    });
 }
 
 function signIn() {    if (!cloud) return Promise.reject(new Error(cloudMod.initError || '云服务未就绪'));
@@ -428,6 +475,8 @@ module.exports = {
     saveBgamePred: saveBgamePred,
     loadSigHist: loadSigHist,
     saveSigHist: saveSigHist,
+    loadVaultBackup: loadVaultBackup,
+    saveVaultBackup: saveVaultBackup,
     loadAInputExt: loadAInputExt,
     signIn: signIn,
     signOut: signOut

@@ -1342,7 +1342,17 @@
 .bg-bar {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     margin-bottom: 10rpx;
+}
+
+.bg-bnote {
+    width: 100%;
+    margin-top: 2rpx;
+    font-size: 19rpx;
+    line-height: 1.5;
+    color: #7d8aa3;
+    word-break: break-all;
 }
 
 .bg-blabel {

@@ -10,6 +10,7 @@ var watchSync = require('../../utils/watchSync');
 var bgame = require('../../utils/bgame');
 var bgHist = require('../../utils/bgHist');
 var verify = require('../../utils/verify');
+var vault = require('../../utils/vault');
 
 /** 把模型读数转成界面字段（条形、配色、文案） */
 function quadClsOf(quad) {
@@ -50,8 +51,8 @@ function decorateAGame(a) {
         { label: 'R 流入强度', pct: Math.max(0, Math.min(100, a.R)), text: a.R.toFixed(1), note: 'EMA平滑·仅参考' },
         { label: 'BIG 大资金', pct: Math.max(0, Math.min(100, a.BIG)), text: a.BIG.toFixed(1) },
         { label: 'A 加速度', pct: Math.max(0, Math.min(100, 50 + a.A * 17)), text: a.A.toFixed(2) },
-        { label: 'E 情绪温度', pct: a.E, text: a.E.toFixed(1) + (a.eReal ? '（涨停池）' : '（中性）') },
-        { label: 'G 卖压再生', pct: a.G, text: a.G.toFixed(1) + '（中性）' }
+        { label: 'E 情绪温度', pct: a.E, text: a.E.toFixed(1), note: a.eNote || (a.eReal ? '（涨停池）' : '（中性）') },
+        { label: 'G 卖压再生', pct: a.G, text: a.G.toFixed(1), note: a.gDetail || '解禁/减持/强平/浮盈四通道' }
     ];
     return a;
 }
@@ -257,6 +258,13 @@ Page({
         }
         this.config = cfg;
         this.setData({ config: cfg });
+        // 启动时若靠「本机备份 / 云端整包」把数据找回来，回灌完成后要重绘一次
+        var selfVault = this;
+        try {
+            this._vaultOff = vault.onApplied(function () {
+                selfVault.applyRestoredVault();
+            });
+        } catch (e) { /* ignore */ }
         this.loadPrevPos();
         this.syncWatch();
         this.ensureFlowBase();
@@ -429,6 +437,24 @@ Page({
         }
     },
 
+    /** 备份回灌后（本机文件或云端整包）重读被找回的数据 */
+    applyRestoredVault: function () {
+        var saved = wx.getStorageSync(CONFIG_KEY);
+        if (saved && typeof saved === 'object') {
+            var cfg = {};
+            var key;
+            for (key in DEFAULT_CONFIG) cfg[key] = DEFAULT_CONFIG[key];
+            for (key in cfg) {
+                if (saved[key] !== undefined && saved[key] !== null) cfg[key] = saved[key];
+            }
+            this.config = cfg;
+            this.setData({ config: cfg });
+        }
+        this.loadPrevPos();
+        try { this.refreshBgAcc(); } catch (e) { /* 画布未就绪时忽略 */ }
+        try { this.updateSigHist(); } catch (e2) { /* ignore */ }
+    },
+
     loadPrevPos: function () {
         var list = wx.getStorageSync(HISTORY_KEY);
         if (!Array.isArray(list) || list.length === 0) {
@@ -468,6 +494,10 @@ Page({
 
     onUnload: function () {
         this.stop();
+        if (this._vaultOff) {
+            try { this._vaultOff(); } catch (e) { /* ignore */ }
+            this._vaultOff = null;
+        }
         if (this._flowTimer) {
             clearTimeout(this._flowTimer);
             this._flowTimer = null;

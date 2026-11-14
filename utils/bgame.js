@@ -619,10 +619,30 @@ function loadAGame() {
             var senti = ext[0];
             var cloud = pickCloudRow(ext[1] && ext[1].data, dates[lastIdx]);
 
+            // 情绪层降级链：东财涨停池(实时) -> 云端收盘值(自动化16:30写入) -> 中性
+            // 真机上 push2ex 若未加域名白名单会取不到，此时用云端值兜底，E 仍是真实收盘情绪
+            var eSrc = 'none';
+            if (senti) {
+                eSrc = 'live';
+            } else if (cloud && cloudOk(cloud.limit_up_cnt)) {
+                senti = {
+                    limitUp: numOr(cloud.limit_up_cnt, 50),
+                    maxBoard: numOr(cloud.max_board, 3),
+                    brokenRate: numOr(cloud.broken_rate, 30),
+                    ymd: cloud.ymd,
+                    fromCloud: true
+                };
+                eSrc = 'cloud';
+            }
+
             // ---- 输入组装（v2 DailyInput）：可用字段接真数据，其余中性降级并标注 ----
             var amtWin = amts.slice(lastIdx - 20, lastIdx);
             var amtRank = turnoverRank(amts[lastIdx], amtWin);
             var dMargin = numOr(cloud && cloud.d_margin, 0);
+            // 获利盘本地兜底：20日乖离率代理（云端有 profit_float_rank 时优先用云端）
+            var ma20pre = mean(closes.slice(-20));
+            var dev20pct = ma20pre ? (closes[lastIdx] / ma20pre - 1) * 100 : 0;
+            var profitLocal = clamp(50 + dev20pct * 4);
             var d = {
                 marginPctRank: numOr(cloud && cloud.margin_pct_rank, 50),
                 fundEquityRank: 50,
@@ -642,10 +662,11 @@ function loadAGame() {
                 maxBoard: senti ? senti.maxBoard : 3,
                 brokenRate: senti ? senti.brokenRate : 30,
                 upRatioRank: numOr(cloud && cloud.up_ratio_rank, 50),
-                unlock5dRank: 50,
-                reduceAmtRank: 50,
-                marginForceRank: dMargin >= -100 ? 50 : Math.min(100, 50 + (-dMargin - 100) / 5),
-                profitFloatRank: 50,
+                unlock5dRank: numOr(cloud && cloud.unlock_5d_rank, 50),
+                reduceAmtRank: numOr(cloud && cloud.reduce_amt_rank, 50),
+                marginForceRank: numOr(cloud && cloud.margin_force_rank,
+                    dMargin >= -100 ? 50 : Math.min(100, 50 + (-dMargin - 100) / 5)),
+                profitFloatRank: numOr(cloud && cloud.profit_float_rank, profitLocal),
                 belowMa5: false,
                 belowMa20: false,
                 policyStack: readPolicyStack(cloud),
@@ -661,12 +682,28 @@ function loadAGame() {
             var q = d.dataQuality;
             var cloudMissing = !cloud;
             function cloudOk(v) { return v !== null && v !== undefined && v !== ''; }
-            if (senti) q['情绪(涨停池)'] = 'ok(涨停' + senti.limitUp + '/炸板率' + senti.brokenRate.toFixed(0) + '%/高度' + senti.maxBoard.toFixed(0) + '板)';
+            if (eSrc === 'live') q['情绪(涨停池)'] = 'ok(涨停' + senti.limitUp + '/炸板率' + senti.brokenRate.toFixed(0) + '%/高度' + senti.maxBoard.toFixed(0) + '板)';
+            else if (eSrc === 'cloud') q['情绪(涨停池)'] = 'ok(云端收盘值, 涨停池直连不可用)';
             else q['情绪(涨停池)'] = 'FAIL 无源, 置中性';
             q['两融'] = cloudMissing || !cloudOk(cloud.d_margin) ? 'FAIL 云端未回填, 置中性' : 'ok(云端自动化, T-1口径)';
             q['主力大单'] = cloudMissing || !cloudOk(cloud.big_order_net_rank) ? 'FAIL 云端未回填, 置中性' : 'ok(云端自动化)';
             q['宽基ETF'] = cloudMissing || !cloudOk(cloud.etf_sub_rank) ? 'FAIL 云端未回填, 置中性' : 'ok(云端自动化)';
-            q['公募仓位/解禁/减持/浮盈'] = '无免费日频源, 置中性';
+            q['解禁(未来5日)'] = cloudMissing || !cloudOk(cloud.unlock_5d_rank) ? 'FAIL 云端未回填, 置中性' : 'ok(东财解禁)';
+            q['减持(近20日)'] = cloudMissing || !cloudOk(cloud.reduce_amt_rank) ? 'FAIL 云端未回填, 置中性' : 'ok(高管净减持)';
+            q['获利盘'] = cloudMissing || !cloudOk(cloud.profit_float_rank) ? 'ok(本地20日乖离代理)' : 'ok(云端乖离)';
+            q['公募仓位'] = '季频无日频源, 置中性(仅影响 P)';
+
+            // 界面上给 E / G 标注真实数据来源，避免被误读成中性值
+            var eNote = eSrc === 'live' ? '（涨停池·实时）'
+                : (eSrc === 'cloud' ? '（云端收盘值）' : '（中性·无数据源）');
+            function _yi(v) { return numOr(v, 0).toFixed(0); }
+            var gDetail = [
+                '解禁 ' + (cloudOk(cloud && cloud.unlock_5d_yi) ? _yi(cloud.unlock_5d_yi) + '亿/5日' : '未回填'),
+                '减持 ' + (cloudOk(cloud && cloud.reduce_20d_yi) ? numOr(cloud.reduce_20d_yi, 0).toFixed(2) + '亿/20日' : '未回填'),
+                '强平 ' + (cloudOk(cloud && cloud.margin_force_rank)
+                    ? (cloudOk(cloud.d_margin) ? '两融代理' : '中性(两融缺)') : '中性'),
+                '浮盈 ' + (dev20pct >= 0 ? '+' : '') + dev20pct.toFixed(1) + '%乖离'
+            ].join(' · ');
 
             // ---- R 序列（量能动量项；历史日无 BIG/政策，按基础 R 排 EMA）----
             var rScores = [];
@@ -831,6 +868,7 @@ function loadAGame() {
                 qualityText: qualityText,
                 mUsable: gateQ.usable,
                 bigReal: !!(cloud && cloudOk(cloud.big_order_net_rank)),
+                eSrc: eSrc, eNote: eNote, gDetail: gDetail,
                 eReal: !!senti,
                 // 数据源标注：东财正常时为空；降级时提示口径/新鲜度
                 sourceText: amountMissing

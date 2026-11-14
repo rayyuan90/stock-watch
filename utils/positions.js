@@ -28,6 +28,7 @@ var CITIC_SEC = '\xd6\xd0\xd0\xc5\xd6\xa4\xc8\xaf';   // 中信证券（若自�
 var BASE = 'http://www.cffex.com.cn/sj/ccpm/';
 var CACHE_KEY = 'kanpan:citPos';
 var CACHE_MS = 10 * 60 * 1000;
+var vault = require('./vault');
 var DAYS = 5;
 var MAX_CAND = 12;
 
@@ -258,6 +259,7 @@ function readCache() {
 
 function writeCache(val) {
     try { wx.setStorageSync(CACHE_KEY, val); } catch (e) { /* ignore */ }
+    try { vault.touch('citPos'); } catch (e2) { /* ignore */ }
 }
 
 /** 后台静默直连刷新（云端已给足数据时用），成功后通知页面重绘 */
