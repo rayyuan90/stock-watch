@@ -696,10 +696,10 @@ function loadAGame() {
             var Ep = 0; // 无 E 历史序列，置 0（对 M 的影响走 Ep 权重 0.15×50 中性）
 
             // ---- 综合动量 M（v2：+BIG 确认项）----
-            var M = clamp(
+            var M = Math.round(clamp(
                 A_M.P * P + A_M.R * R_adj + A_M.A * (50 + A * 10) +
                 A_M.E * E + A_M.Ep * (50 + Ep * 10) - A_M.G * G + A_M.BIG * (BIG - 50),
-                -100, 100);
+                -100, 100) * 100) / 100;
 
             var quad = aQuadrant(R_adj, A);
 
@@ -787,7 +787,7 @@ function loadAGame() {
             var scenarios = regimeScenarios(regime, gate, cont, bars);
             var qualityText = gateQ.usable
                 ? '✅ 数据质量闸门: M 可用于方向判断'
-                : '🚫 M=' + M.toFixed(1) + ' 不可用于方向判断，只能看象限+告警';
+                : '🚫 M=' + M.toFixed(2) + ' 不可用于方向判断，只能看象限+告警';
             var qParts = [];
             for (var qk in q) {
                 if (q.hasOwnProperty(qk) && String(q[qk]).indexOf('ok') !== 0) qParts.push(qk);

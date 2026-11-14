@@ -44,7 +44,7 @@ function decorateAGame(a) {
     a.rPrevText = a.regime ? '较前日 ' + a.regime.rPrev.toFixed(2) + '×' : '';
     a.mPct = Math.max(0, Math.min(100, a.M));
     a.mCls = a.M >= 55 ? 'up' : (a.M <= 45 ? 'down' : 'flat');
-    a.M = Math.round(a.M * 10) / 10; // 界面展示保留一位小数
+    a.mText = a.M.toFixed(2);
     a.bars = [
         { label: 'P 仓位空间', pct: Math.max(0, Math.min(100, a.P)), text: a.P.toFixed(1), note: '燃料余量(非空头)·量能分位 ' + a.amtRank.toFixed(0) },
         { label: 'R 流入强度', pct: Math.max(0, Math.min(100, a.R)), text: a.R.toFixed(1), note: 'EMA平滑·仅参考' },

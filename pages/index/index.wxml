@@ -358,7 +358,7 @@
                     <view class="bg-mmark"></view>
                     <view class="bg-mfill {{aGame.mCls}}" style="width:{{aGame.mPct}}%"></view>
                 </view>
-                <text class="bg-mval num {{aGame.mCls}}">{{aGame.M}}</text>
+                <text class="bg-mval num {{aGame.mCls}}">{{aGame.mText}}</text>
             </view>
 
             <view class="bg-bars">
