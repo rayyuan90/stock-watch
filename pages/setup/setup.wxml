@@ -1,0 +1,130 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="intro">
+        <text class="intro-title">看盘设置</text>
+        <text class="intro-sub">数据只保存在本机，不上传</text>
+    </view>
+
+    <view class="cloud-card">
+        <view class="cc-info">
+            <text class="cc-k">云同步</text>
+            <text class="cc-v">{{cloudLabel}}</text>
+            <text class="cc-err" wx:if="{{loginError}}">{{loginError}}</text>
+        </view>
+        <button class="cc-btn" wx:if="{{!cloudUser}}" bindtap="login" loading="{{loggingIn}}" disabled="{{loggingIn}}">使用 WorkBuddy 登录</button>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
+            <text class="card-title">持仓成本</text>
+            <text class="card-tag">513310</text>
+        </view>
+        <view class="card-desc">中韩半导体ETF 华泰柏瑞 · 填写后首页自动算浮动盈亏</view>
+
+        <view class="field">
+            <text class="f-label">持仓成本</text>
+            <view class="f-right">
+                <input class="f-input num" type="digit" value="{{form.cost513310}}" data-f="cost513310" bindinput="onInput" placeholder="3.420" placeholder-class="ph" />
+                <text class="f-unit">元/份</text>
+            </view>
+        </view>
+        <view class="field">
+            <text class="f-label">持仓份额</text>
+            <view class="f-right">
+                <input class="f-input num" type="number" value="{{form.shares513310}}" data-f="shares513310" bindinput="onInput" placeholder="10000" placeholder-class="ph" />
+                <text class="f-unit">份</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
+            <text class="card-title">持仓成本</text>
+            <text class="card-tag">159995</text>
+        </view>
+        <view class="card-desc">芯片ETF 华夏 · 选填</view>
+
+        <view class="field">
+            <text class="f-label">持仓成本</text>
+            <view class="f-right">
+                <input class="f-input num" type="digit" value="{{form.cost159995}}" data-f="cost159995" bindinput="onInput" placeholder="0.850" placeholder-class="ph" />
+                <text class="f-unit">元/份</text>
+            </view>
+        </view>
+        <view class="field">
+            <text class="f-label">持仓份额</text>
+            <view class="f-right">
+                <input class="f-input num" type="number" value="{{form.shares159995}}" data-f="shares159995" bindinput="onInput" placeholder="20000" placeholder-class="ph" />
+                <text class="f-unit">份</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
+            <text class="card-title">股指期货多空</text>
+            <text class="card-tag">收盘后更新</text>
+        </view>
+        <view class="card-desc">
+            中金所每日收盘后公布前20会员持仓排名。填入「净空单手数」即可，首页会自动算多空占比、相较上一日的变化，并计入次日倾向评分。
+        </view>
+
+        <view class="side-switch">
+            <view class="side-btn {{posSide === 'short' ? 'active-short' : ''}}" data-side="short" bindtap="onSide">净空单</view>
+            <view class="side-btn {{posSide === 'long' ? 'active-long' : ''}}" data-side="long" bindtap="onSide">净多单</view>
+        </view>
+
+        <view class="field">
+            <text class="f-label">手数</text>
+            <view class="f-right">
+                <input class="f-input num" type="number" value="{{posAmount}}" data-f="posAmount" bindinput="onInput" placeholder="例如 12500" placeholder-class="ph" />
+                <text class="f-unit">手</text>
+            </view>
+        </view>
+        <view class="field">
+            <text class="f-label">总持仓（选填）</text>
+            <view class="f-right">
+                <input class="f-input num" type="number" value="{{form.posTotalOi}}" data-f="posTotalOi" bindinput="onInput" placeholder="用于计算占比" placeholder-class="ph" />
+                <text class="f-unit">手</text>
+            </view>
+        </view>
+        <view class="field">
+            <text class="f-label">数据日期</text>
+            <picker mode="date" value="{{form.posDate}}" end="{{today}}" bindchange="onDate">
+                <view class="picker-val num">{{form.posDate}}</view>
+            </picker>
+        </view>
+    </view>
+
+    <view class="hint">
+        <text>说明：期货市场每一手多单必然对应一手空单，所以「总持仓」本身就是多空各占多少。真正有参考价值的是前20会员的净持仓方向和它的日变化。</text>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
+            <text class="card-title">网络自检</text>
+            <text class="card-tag">域名</text>
+        </view>
+        <view class="card-desc">逐个测试行情与云服务域名，看微信有没有拦截</view>
+        <view class="diag-btn" bindtap="runDiag">
+            <text>{{diagRunning ? '检测中…' : '开始检测'}}</text>
+        </view>
+        <view class="diag-list" wx:if="{{diag}}">
+            <view class="diag-row" wx:for="{{diag}}" wx:key="host">
+                <view class="dr-l">
+                    <text class="dr-host num">{{item.host}}</text>
+                    <text class="dr-label">{{item.label}}</text>
+                </view>
+                <view class="dr-r">
+                    <text class="dr-ok {{item.ok ? 'pass' : 'fail'}}">{{item.ok ? '通' : '拦截'}}</text>
+                    <text class="dr-detail">{{item.ok ? item.ms + 'ms' : item.detail}}</text>
+                </view>
+            </view>
+        </view>
+    </view>
+
+    <view class="save-bar">
+        <button class="save-btn" bindtap="save">保存</button>
+    </view>
+</view>

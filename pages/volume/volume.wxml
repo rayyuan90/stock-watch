@@ -1,0 +1,93 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="topbar">
+        <view class="tb-left">
+            <text class="tb-title">A 股量能</text>
+            <text class="tb-sub">沪深两市 · 上证指数 + 深证成指口径</text>
+        </view>
+        <text class="clock num">{{updatedAt}}</text>
+    </view>
+
+    <view class="err" wx:if="{{flowErr || barsErr}}">{{flowErr || barsErr}}，请检查网络或域名白名单</view>
+
+    <view class="card" wx:if="{{head}}">
+        <view class="head-row">
+            <view class="hc">
+                <text class="hc-k">今日累计</text>
+                <text class="hc-v num">{{head.todayText}}</text>
+                <text class="hc-d num">{{head.todayDate}}</text>
+            </view>
+            <view class="hc">
+                <text class="hc-k">昨日全天</text>
+                <text class="hc-v num">{{head.prevText}}</text>
+                <text class="hc-d num">{{head.prevDate}}</text>
+            </view>
+            <view class="hc">
+                <text class="hc-k">同时刻对比</text>
+                <text class="hc-v num {{head.ratioCls}}">{{head.ratioText}}</text>
+                <text class="hc-d">{{head.countText}}</text>
+            </view>
+        </view>
+        <view class="flow-bar">
+            <view class="fb-fill" style="width:{{head.progressPct}}%"></view>
+        </view>
+        <text class="flow-note">{{head.ratioNote}} · 今日已达昨日全天 {{head.progressPct}}%</text>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">当日 vs 昨日 · 分时累计成交</text>
+            <text class="sec-note">5 分钟粒度 · 60 秒刷新</text>
+        </view>
+
+        <view class="cross num" wx:if="{{flowCross}}">
+            <text class="cx-t">{{flowCross.t}}</text>
+            <text class="cx-i">今日 {{flowCross.todayText}}</text>
+            <text class="cx-i">昨日 {{flowCross.prevText}}</text>
+            <text class="cx-i num {{flowCross.cls}}">{{flowCross.ratioText}}</text>
+        </view>
+        <view class="cross-tip" wx:elif="{{!flowErr}}">触摸曲线可查看同一时点两天的累计量</view>
+
+        <view class="chart-box">
+            <canvas id="flowChart" type="2d" class="chart"
+                bindtouchstart="onFlowStart"
+                bindtouchmove="onFlowMove"
+                bindtouchend="onFlowEnd"></canvas>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">近 60 日成交额</text>
+            <text class="sec-note">涨红 / 跌绿 · 金线为 5 日均量</text>
+        </view>
+
+        <view class="cross num" wx:if="{{barsCross}}">
+            <text class="cx-t">{{barsCross.date}}</text>
+            <text class="cx-i">成交 {{barsCross.amountText}}</text>
+            <text class="cx-i num {{barsCross.cls}}">{{barsCross.pctText}}</text>
+            <text class="cx-i">较5日均量 {{barsCross.maText}}</text>
+        </view>
+        <view class="cross-tip" wx:elif="{{!barsErr}}">触摸柱子可查看当日成交额与缩放量能</view>
+
+        <view class="chart-box tall">
+            <canvas id="barChart" type="2d" class="chart"
+                bindtouchstart="onBarStart"
+                bindtouchmove="onBarMove"
+                bindtouchend="onBarEnd"></canvas>
+        </view>
+    </view>
+
+    <view class="foot">
+        <text>两市口径：上证指数 + 深证成指成交额加总</text>
+        <text>分时对比按 5 分钟对齐，今日线只画到最新时段</text>
+    </view>
+
+    <view class="loading-mask" wx:if="{{loading}}">
+        <view class="loading-box">
+            <view class="spinner"></view>
+            <text>正在拉取量能数据…</text>
+        </view>
+    </view>
+</view>

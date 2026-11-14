@@ -1,0 +1,579 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="topbar">
+        <view class="tb-left">
+            <text class="tb-title">算力看盘</text>
+            <text class="tb-sub">中韩半导体 · 跨市场联动</text>
+        </view>
+        <view class="tb-right">
+            <view class="status {{live ? 'status-live' : ''}}">
+                <view class="pulse"></view>
+                <text class="status-text">{{statusText}}</text>
+            </view>
+            <text class="clock num">{{updatedAt}}</text>
+        </view>
+    </view>
+
+    <view class="err" wx:if="{{error}}">{{error}}，请检查网络或接口域名白名单</view>
+
+    <view class="offline-bar {{previewMode ? 'ob-preview' : ''}}" wx:if="{{offline}}">
+        <view class="ob-row">
+            <text class="ob-dot"></text>
+            <text class="ob-title">{{previewMode ? '预览快照' : '离线快照'}} · {{offlineAt}}</text>
+        </view>
+        <text class="ob-sub">{{offlineSub}}</text>
+    </view>
+
+    <view class="domain-tip" wx:if="{{domainBlocked}}">
+        <text class="dt-t">微信拦截了行情请求：域名未加白名单</text>
+        <text class="dt-s">需要加入 request 合法域名：</text>
+        <text class="dt-list num">{{domainText}}</text>
+        <view class="dt-actions">
+            <text class="dt-btn" bindtap="copyDomains">复制全部域名</text>
+            <text class="dt-hint">临时办法：右上角「…」→ 打开调试</text>
+        </view>
+    </view>
+
+    <view class="card signal" wx:if="{{signalData}}">
+        <view class="signal-head">
+            <text class="sec-label">次日倾向</text>
+            <view class="head-links">
+                <text class="sec-link num" bindtap="goAccuracy" wx:if="{{sigStats.total > 0}}">{{sigStats.hit}}/{{sigStats.total}}</text>
+                <text class="sec-badge {{signalData.cls}}">{{signalData.label}}</text>
+                <text class="sec-link" bindtap="goAccuracy">复盘 ›</text>
+            </view>
+        </view>
+        <view class="signal-main">
+            <text class="score num {{signalData.cls}}">{{signalData.scoreText}}</text>
+            <view class="gauge">
+                <view class="gauge-track">
+                    <view class="gauge-fill {{signalData.cls}}" style="width:{{signalData.barPct}}%"></view>
+                    <view class="gauge-dot {{signalData.cls}}" style="left:{{signalData.barPct}}%"></view>
+                </view>
+                <view class="gauge-axis">
+                    <text>偏空</text>
+                    <text>震荡</text>
+                    <text>偏多</text>
+                </view>
+                <text class="signal-hint">{{signalData.hint}}</text>
+            </view>
+        </view>
+        <view class="factors">
+            <view class="factor" wx:for="{{signalData.factors}}" wx:key="name">
+                <text class="f-name">{{item.name}}</text>
+                <text class="f-val num {{item.cls}}">{{item.text}}</text>
+                <text class="f-detail">{{item.detail}}</text>
+            </view>
+        </view>
+        <view class="sig-fuse sig-fuse-{{sigFuse.cls}}" wx:if="{{sigFuse}}">
+            <view class="sf-row">
+                <text class="sf-k">汇总（跨市场 × A股模型）</text>
+                <text class="sf-score num {{sigFuse.cls}}">{{sigFuse.scoreText}}</text>
+                <text class="sf-label">{{sigFuse.label}}</text>
+            </view>
+            <text class="sf-hint">{{sigFuse.hint}}</text>
+        </view>
+    </view>
+
+    <view class="hero" wx:if="{{hero}}" bindtap="goDetail" data-sec="{{hero.sec}}" data-name="{{hero.name}}">
+        <view class="hero-head">
+            <view class="hero-title">
+                <text class="hero-name">{{hero.name}}</text>
+                <text class="hero-code num">{{hero.code}} · {{hero.fullName}}</text>
+            </view>
+            <view class="hero-price-wrap">
+                <text class="hero-price num {{hero.cls}}">{{hero.priceText}}</text>
+                <text class="hero-pct num {{hero.cls}}">{{hero.changeText}} / {{hero.pctText}}</text>
+            </view>
+        </view>
+        <view class="hero-stats">
+            <view class="hs">
+                <text class="hs-k">最高</text>
+                <text class="hs-v num">{{hero.highText}}</text>
+            </view>
+            <view class="hs">
+                <text class="hs-k">最低</text>
+                <text class="hs-v num">{{hero.lowText}}</text>
+            </view>
+            <view class="hs">
+                <text class="hs-k">成交额</text>
+                <text class="hs-v num">{{hero.amountText}}</text>
+            </view>
+            <view class="hs">
+                <text class="hs-k">溢价率</text>
+                <text class="hs-v num {{hero.premiumCls}}">{{hero.premiumText}}</text>
+            </view>
+        </view>
+        <view class="pos" wx:if="{{hero.pos}}">
+            <view class="pos-item">
+                <text class="pos-k">持仓</text>
+                <text class="pos-v num">{{hero.pos.shares}} 份</text>
+            </view>
+            <view class="pos-item">
+                <text class="pos-k">成本</text>
+                <text class="pos-v num">{{hero.pos.cost}}</text>
+            </view>
+            <view class="pos-item">
+                <text class="pos-k">市值</text>
+                <text class="pos-v num">{{hero.pos.valueText}}</text>
+            </view>
+            <view class="pos-item">
+                <text class="pos-k">浮动盈亏</text>
+                <text class="pos-v num {{hero.pos.cls}}">{{hero.pos.profitText}} ({{hero.pos.profitPctText}})</text>
+            </view>
+        </view>
+        <view class="pos-empty" wx:else bindtap="goSetup">
+            <text>录入持仓成本，自动计算盈亏</text>
+            <text class="arrow">›</text>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">我的算力仓</text>
+            <text class="sec-note">芯片主线</text>
+        </view>
+        <view class="row tap" wx:for="{{holdings}}" wx:key="code" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.subText}}</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+                <text class="row-profit num {{item.pos.cls}}" wx:if="{{item.pos}}">{{item.pos.profitText}} ({{item.pos.profitPctText}})</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">自选 · 手动添加</text>
+            <view class="head-links">
+                <text class="sec-link sync-tag {{watchSyncLabel === '已云同步' ? 'on' : ''}}" bindtap="onWatchSyncTap">{{watchSyncLabel}}</text>
+                <text class="sec-link" bindtap="goAdd">+ 添加 ›</text>
+            </view>
+        </view>
+
+        <view class="watch-empty" wx:if="{{!watchList.length}}" bindtap="goAdd">
+            <text class="we-t">添加你关心的股票 / ETF / 股指期货</text>
+            <text class="we-s">支持名称或代码搜索：纳指期货、英伟达、台积电、SK海力士……添加后可点开看日K与分时</text>
+        </view>
+
+        <block wx:else>
+            <view class="row tap" wx:for="{{watchList}}" wx:key="sec" bindtap="goDetail"
+                  bindlongpress="removeWatch" data-sec="{{item.sec}}" data-name="{{item.name}}">
+                <view class="row-l">
+                    <text class="row-name">{{item.name}}</text>
+                    <view class="ext-line" wx:if="{{item.hasExt}}">
+                        <text class="ext num {{item.preCls}}" wx:if="{{item.preText}}">{{item.preText}}</text>
+                        <text class="ext num {{item.afterCls}}" wx:if="{{item.afterText}}">{{item.afterText}}</text>
+                    </view>
+                    <text class="row-code num" wx:else>{{item.subText}}</text>
+                </view>
+                <view class="row-r">
+                    <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                    <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+                </view>
+            </view>
+            <view class="watch-foot">
+                <text>共 {{watchCount}}/{{watchMax}} 个 · 长按可移出</text>
+            </view>
+        </block>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">A 股量能</text>
+            <text class="sec-link" bindtap="goVolume">对比曲线与60日量能 ›</text>
+        </view>
+
+        <view class="flow-grid" wx:if="{{aFlow}}">
+            <view class="fg-cell">
+                <text class="fg-k">今日两市</text>
+                <text class="fg-v num">{{aFlow.todayText}}</text>
+            </view>
+            <view class="fg-cell">
+                <text class="fg-k">{{aFlow.baseLabel}}</text>
+                <text class="fg-v num">{{aFlow.baseText}}</text>
+            </view>
+            <view class="fg-cell">
+                <text class="fg-k">同刻对比</text>
+                <text class="fg-v num {{aFlow.ratioCls}}">{{aFlow.ratioText}}</text>
+            </view>
+        </view>
+
+        <view class="flow-bar" wx:if="{{aFlow}}">
+            <view class="fb-fill {{aFlow.hot ? 'hot' : ''}}" style="width:{{aFlow.barPct}}%"></view>
+            <view class="fb-mark" style="left:{{aFlow.timeMark}}%"></view>
+        </view>
+        <text class="flow-note" wx:if="{{aFlow}}">{{aFlow.note}}</text>
+        <text class="flow-note" wx:else>两市成交额获取中…</text>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">股指期货多空</text>
+            <view class="head-links">
+                <text class="sec-link" bindtap="goAdd">+ 合约</text>
+                <text class="sec-link" bindtap="goSetup">录入 ›</text>
+            </view>
+        </view>
+
+        <view class="ls" wx:if="{{longShort.has}}">
+            <view class="ls-top">
+                <view class="ls-side">
+                    <text class="ls-k">前20会员{{longShort.side}}</text>
+                    <text class="ls-v num {{longShort.netCls}}">{{longShort.netText}} 手</text>
+                </view>
+                <view class="ls-side right">
+                    <text class="ls-k">较上一日</text>
+                    <text class="ls-v num {{longShort.diffCls}}">{{longShort.diffText}}</text>
+                </view>
+            </view>
+            <view class="ls-bar">
+                <view class="ls-long" style="width:{{longShort.longPct}}%"></view>
+                <view class="ls-short" style="width:{{longShort.shortPct}}%"></view>
+            </view>
+            <view class="ls-legend">
+                <text class="up">多 {{longShort.longPct}}%</text>
+                <text class="ls-note">{{longShort.date}} 收盘 · 总持仓 {{longShort.totalText}}</text>
+                <text class="down">空 {{longShort.shortPct}}%</text>
+            </view>
+        </view>
+
+        <view class="ls-empty" wx:else bindtap="goSetup">
+            <text class="ls-empty-title">尚未录入多空持仓</text>
+            <text class="ls-empty-sub">填入当日「净空单手数」，自动算多空占比与趋势 ›</text>
+        </view>
+
+        <view class="fut-table">
+            <view class="ft-head">
+                <text class="ft-h1">合约</text>
+                <text class="ft-h2">最新 / 涨跌</text>
+                <text class="ft-h3">基差 / 成交</text>
+            </view>
+            <view class="ft-row tap" wx:for="{{futures}}" wx:key="label" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.desc}}">
+                <view class="ft-name">
+                    <text class="ft-code">{{item.label}}</text>
+                    <text class="ft-desc">{{item.desc}}</text>
+                </view>
+                <view class="ft-price">
+                    <text class="num ft-p {{item.cls}}">{{item.priceText}}</text>
+                    <text class="num ft-pct {{item.cls}}">{{item.pctText}}</text>
+                </view>
+                <view class="ft-basis">
+                    <text class="ft-b {{item.basisCls}}">{{item.basisText}}</text>
+                    <text class="ft-vol num">{{item.volText}}</text>
+                </view>
+            </view>
+        </view>
+
+        <view class="pos-box">
+            <view class="pos-head">
+                <text class="pos-label">净空单 · 中信 vs 前20席位</text>
+                <view class="pos-meta">
+                    <text class="pos-date num" wx:if="{{posDate}}">截至 {{posDate}} 收盘</text>
+                    <text class="pos-src" wx:if="{{posSource}}">{{posSource}}</text>
+                </view>
+            </view>
+
+            <view class="pos-tabs">
+                <text
+                    class="pos-tab {{posTab === item.key ? 'on' : ''}}"
+                    wx:for="{{posProducts}}"
+                    wx:key="key"
+                    bindtap="switchPos"
+                    data-key="{{item.key}}">{{item.key}} {{item.name}}</text>
+            </view>
+
+            <view class="pos-legend">
+                <text class="pl-item"><text class="pl-dot solid"></text>中信</text>
+                <text class="pl-item"><text class="pl-dot half"></text>前20席位</text>
+                <text class="pl-item"><text class="pl-line c"></text>中信走势</text>
+                <text class="pl-item"><text class="pl-line t"></text>前20走势</text>
+            </view>
+            <view class="pos-subnote">数值=空单-多单(净空) · 绿=净空 红=净多 · 点击柱图看各日数字与增减</view>
+
+            <canvas type="2d" id="posCanvas" class="pos-canvas" wx:if="{{!posErr}}" bindtouchstart="onPosTap" bindtouchmove="onPosTap"></canvas>
+
+            <view class="pos-msg" wx:if="{{posLoading && !posErr}}">
+                <text>正在拉取中金所持仓排名…</text>
+            </view>
+            <view class="pos-msg err" wx:if="{{posErr}}">
+                <text>{{posErr}}</text>
+                <text class="pos-retry" bindtap="retryPos">重新获取</text>
+            </view>
+
+            <view class="pos-pick num" wx:if="{{posPick}}">
+                <text>{{posPick.label}}  中信{{posPick.citicText}} · 前20{{posPick.top20Text}}</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{aGame || aGameState}}">
+        <view class="sec-head">
+            <text class="sec-label">A股多空博弈</text>
+            <text class="sec-note">ASFMM-A v3 · 脉冲市状态机</text>
+        </view>
+
+        <view class="pos-msg" wx:if="{{!aGame}}">
+            <text>{{aGameState}}</text>
+        </view>
+        <view wx:if="{{aGame}}">
+            <view class="bg-top">
+                <view class="bg-quad bg-regime-{{aGame.regimeCls}}">
+                    <text class="bg-quad-t">{{aGame.regime.label}}</text>
+                    <text class="bg-quad-s">{{aGame.action}}</text>
+                </view>
+                <view class="bg-pred gate-{{aGame.gateCls}}">
+                    <text class="bg-pred-label">买点门禁</text>
+                    <text class="bg-pred-v num">{{aGame.gateScore}}/6</text>
+                </view>
+            </view>
+
+            <view class="bg-regime-row">
+                <text class="bg-regime-i">今日量能 {{aGame.amtText}} · {{aGame.rMaText}} · {{aGame.rPrevText}}</text>
+                <text class="bg-regime-i">20日均量 {{aGame.ma20Text}} · 连续站上 {{aGame.regime.consec}} 日 · {{aGame.regime.reason}}</text>
+                <text class="bg-regime-i {{aGame.jump.triggered ? 'jump-on' : ''}}">跳变监测: {{aGame.jump.text}}</text>
+            </view>
+
+            <view class="bg-conn {{aGame.cont.verdict === '双确认通过' ? 'ok' : (aGame.cont.pulseIdx >= 0 ? 'warn' : '')}}">
+                <text class="bg-conn-t">T+1 / T+2 硬确认 · {{aGame.cont.verdict}}</text>
+                <text class="bg-conn-d">{{aGame.cont.text}}</text>
+            </view>
+
+            <view class="bg-gates">
+                <text class="bg-gates-t">{{aGame.gateVerdict}}</text>
+                <view class="bg-gchip {{item.cls}}" wx:for="{{aGame.gateItems}}" wx:key="idx">
+                    <text class="bg-gchip-n">{{item.idx}} {{item.name}}</text>
+                    <text class="bg-gchip-d">{{item.detail}}</text>
+                </view>
+            </view>
+
+            <view class="bg-mrow">
+                <text class="bg-mlabel">综合动量 M</text>
+                <view class="bg-mtrack">
+                    <view class="bg-mmark"></view>
+                    <view class="bg-mfill {{aGame.mCls}}" style="width:{{aGame.mPct}}%"></view>
+                </view>
+                <text class="bg-mval num {{aGame.mCls}}">{{aGame.M}}</text>
+            </view>
+
+            <view class="bg-bars">
+                <view class="bg-bar" wx:for="{{aGame.bars}}" wx:key="label">
+                    <text class="bg-blabel">{{item.label}}</text>
+                    <view class="bg-btrack">
+                        <view class="bg-bfill {{item.label[0] === 'G' ? 'neg' : ''}}" style="width:{{item.pct}}%"></view>
+                        <view class="bg-bmid"></view>
+                    </view>
+                    <text class="bg-bval num">{{item.text}}</text>
+                </view>
+            </view>
+
+            <view class="bg-matrix"><text>{{aGame.matrix}}</text></view>
+            <view class="bg-matrix"><text>背离: {{aGame.divergence}}</text></view>
+
+            <view class="bg-quality {{aGame.mUsable ? 'qok' : 'qbad'}}" wx:if="{{aGame.qualityText}}">
+                <text>{{aGame.qualityText}}</text>
+            </view>
+
+            <view class="bg-policy" wx:if="{{aGame.sourceText}}">
+                <text>⚠ {{aGame.sourceText}}</text>
+            </view>
+
+            <view class="bg-policy" wx:if="{{aGame.policyText}}">
+                <text>政策: {{aGame.policyText}}</text>
+            </view>
+
+            <view class="bg-scen" wx:if="{{aGame.scenarios.length}}">
+                <text class="bg-scen-t">次日观察框架（脉冲市口径）</text>
+                <text class="bg-scen-i" wx:for="{{aGame.scenarios}}" wx:key="*this">{{item}}</text>
+            </view>
+
+            <view class="bg-alerts" wx:if="{{aGame.alerts.length}}">
+                <text class="bg-alert" wx:for="{{aGame.alerts}}" wx:key="*this">{{item}}</text>
+            </view>
+
+            <view class="bg-note">
+                <text>{{aGame.date}} 收盘数据 · 情绪=东财涨停池实数；两融/大单/ETF由每交易日收盘后自动化任务写入云端，未回填时置中性</text>
+                <text>{{'\n'}}参考幅度（连续模型口径，脉冲市里置信度低，仅记录用）：{{aGame.predText}}</text>
+                <text wx:if="{{aGame.gateScore < 6}}">{{'\n'}}门禁未全亮 → 明日实操按「只看不买 / 借反抽减仓」执行；出现脉冲放量也不追，等 T+1 不反杀再谈</text>
+                <text wx:else>{{'\n'}}门禁全亮 → 可按计划仓位 1/3 小仓试错，止损设前低下方 1%</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{verifyPanel}}">
+        <view class="sec-head">
+            <text class="sec-label">明日实操验证 · {{verifyPanel.dateLabel}}</text>
+            <text class="sec-note">{{verifyPanel.stageText}}</text>
+        </view>
+        <view class="vf-verdict vf-verdict-{{verifyPanel.verdict.cls}}" wx:if="{{verifyPanel.verdict}}">
+            <view class="vf-verdict-row">
+                <text class="vf-verdict-k">今日验证结论</text>
+                <text class="vf-verdict-v">{{verifyPanel.verdict.text}}</text>
+            </view>
+            <text class="vf-verdict-detail">{{verifyPanel.verdict.detail}}</text>
+        </view>
+
+        <view class="vf-item vf-{{item.cls}}" wx:for="{{verifyPanel.items}}" wx:key="key">
+            <view class="vf-head">
+                <text class="vf-title">{{item.title}}</text>
+                <text class="vf-badge">{{item.badge}}</text>
+            </view>
+            <view class="vf-line" wx:for="{{item.lines}}" wx:for-item="ln" wx:key="k">
+                <text class="vf-k">{{ln.k}}</text>
+                <text class="vf-v num {{ln.cls}}">{{ln.v}}</text>
+            </view>
+        </view>
+
+        <view class="bg-note">
+            <text>模型给的是底牌倾向，盘面给的是实时验证 · 早盘 15 分钟量价结构是验证关键 · 依据上证指数 / 两市同刻量能 / 半导体核心标的（513310 · 159995 · 512480 · 长鑫科技）实时数据</text>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{usGame || usGameState}}">
+        <view class="sec-head">
+            <text class="sec-label">美股多空博弈</text>
+            <text class="sec-note">SFMM 空平燃料-动量模型 · 纳指</text>
+        </view>
+
+        <view class="pos-msg" wx:if="{{!usGame}}">
+            <text>{{usGameState}}</text>
+        </view>
+        <view wx:if="{{usGame}}">
+            <view class="bg-top">
+                <view class="bg-quad {{usGame.quadCls}}">
+                    <text class="bg-quad-t">{{usGame.quad}}</text>
+                    <text class="bg-quad-s">{{usGame.signal}}</text>
+                </view>
+                <view class="bg-pred {{usGame.predCls}}">
+                    <text class="bg-pred-label">下一交易日幅度</text>
+                    <text class="bg-pred-v num">{{usGame.predText}}</text>
+                </view>
+            </view>
+
+            <view class="bg-mrow">
+                <text class="bg-mlabel">多空力量 M</text>
+                <view class="bg-mtrack">
+                    <view class="bg-mmark"></view>
+                    <view class="bg-mfill {{usGame.mCls}}" style="width:{{usGame.mPct}}%"></view>
+                </view>
+                <text class="bg-mval num {{usGame.mCls}}">{{usGame.M}}</text>
+            </view>
+
+            <view class="bg-bars">
+                <view class="bg-bar" wx:for="{{usGame.bars}}" wx:key="label">
+                    <text class="bg-blabel">{{item.label}}</text>
+                    <view class="bg-btrack">
+                        <view class="bg-bfill {{item.label[0] === 'G' ? 'neg' : ''}}" style="width:{{item.pct}}%"></view>
+                        <view class="bg-bmid"></view>
+                    </view>
+                    <text class="bg-bval num">{{item.text}}</text>
+                </view>
+            </view>
+
+            <view class="bg-alerts" wx:if="{{usGame.notes.length}}">
+                <text class="bg-alert" wx:for="{{usGame.notes}}" wx:key="*this">{{item}}</text>
+            </view>
+
+            <view class="bg-note">
+                <text>{{usGame.date}} 收盘数据 · 空头OI不可得，以「距20日高点回撤」同构代理（下跌攒燃料/上涨燃烧） · 幅度为模型估计非预测承诺</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">模型预测复盘</text>
+            <view class="pos-tabs">
+                <text class="pos-tab {{bgAccTab === 'a' ? 'on' : ''}}" data-key="a" bindtap="switchBgAcc">A股</text>
+                <text class="pos-tab {{bgAccTab === 'us' ? 'on' : ''}}" data-key="us" bindtap="switchBgAcc">美股</text>
+            </view>
+        </view>
+
+        <view class="bgacc-stats" wx:if="{{bgAccStats}}">
+            <text class="bgacc-stat">方向命中 <text class="num">{{bgAccStats.dirText}}</text></text>
+            <text class="bgacc-stat">区间命中 <text class="num">{{bgAccStats.rngText}}</text></text>
+        </view>
+
+        <view class="pos-msg" wx:if="{{bgAccState}}"><text>{{bgAccState}}</text></view>
+
+        <canvas type="2d" id="bgAccCanvas" class="bgacc-canvas"
+            wx:if="{{!bgAccState}}"
+            bindtouchstart="bgAccTap" bindtouchmove="bgAccTap"></canvas>
+
+        <view class="pos-pick num" wx:if="{{bgAccPick}}">
+            <text>{{bgAccPick.text}}</text>
+        </view>
+
+        <view class="bg-note">
+            <text>每日模型计算时自动记录预测，次日收盘后回填真实涨跌 · 预测半透明柱/真实实心柱，红涨绿跌 · 数据存云端，换设备与重装后不丢 · 点击柱图看每日数字</text>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">跨市场</text>
+            <text class="sec-note">韩美先于 A 股反应</text>
+        </view>
+
+        <view class="grp-title">韩国 · 中韩 ETF 双核</view>
+        <view class="row tap" wx:for="{{korea}}" wx:key="name" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.subText}}</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+            </view>
+        </view>
+
+        <view class="grp-title">美国 · 半导体链（盘前 17:00起 / 盘后 05:00-09:00 北京时间更新）</view>
+        <view class="row tap" wx:for="{{us}}" wx:key="name" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <view class="ext-line" wx:if="{{item.hasExt}}">
+                    <text class="ext num {{item.preCls}}" wx:if="{{item.preText}}">{{item.preText}}</text>
+                    <text class="ext num {{item.afterCls}}" wx:if="{{item.afterText}}">{{item.afterText}}</text>
+                    <text class="ext-none" wx:if="{{!item.preText && !item.afterText}}">无盘前盘后数据</text>
+                </view>
+                <text class="row-code num" wx:else>{{item.subText}}</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+            </view>
+        </view>
+
+        <view class="grp-title">A 股 · 情绪底</view>
+        <view class="row tap" wx:for="{{aShare}}" wx:key="name" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.subText}}</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="footer">
+        <text>行情每 3 秒刷新 · 东方财富 / 腾讯行情</text>
+        <text>自选支持手动添加股票 / ETF / 股指期货，点行看日K与分时</text>
+        <text>{{cloudLabel}}</text>
+        <text>多空持仓需收盘后手动录入，用于趋势对比</text>
+        <text class="warn">信号为量化参考，不构成投资建议</text>
+    </view>
+
+    <view class="loading-mask" wx:if="{{loading}}">
+        <view class="loading-box">
+            <view class="spinner"></view>
+            <text>正在接入行情…</text>
+        </view>
+    </view>
+</view>

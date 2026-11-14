@@ -1,0 +1,71 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="topbar">
+        <view class="tb-left">
+            <text class="tb-title">次日倾向复盘</text>
+            <text class="tb-sub">收盘后记预测 · 次日开盘记真实</text>
+        </view>
+        <text class="clock num">{{updatedAt}}</text>
+    </view>
+
+    <view class="card" wx:if="{{stats}}">
+        <view class="stat-row">
+            <view class="st">
+                <text class="st-k">已记录</text>
+                <text class="st-v num">{{rows.length}} 天</text>
+            </view>
+            <view class="st">
+                <text class="st-k">方向命中</text>
+                <text class="st-v num">{{stats.hit}}/{{stats.total}}</text>
+            </view>
+            <view class="st">
+                <text class="st-k">准确率</text>
+                <text class="st-v num {{stats.total > 0 ? (stats.hit / stats.total >= 0.5 ? 'up' : 'down') : ''}}">{{stats.pctText}}</text>
+            </view>
+        </view>
+        <text class="rule">预测：15:00 收盘后记录「跨市场 × A股模型」汇总分（-100~+100）；真实：次日 9:30 后取科技板块一篮子（中韩半导体/芯片/半导体ETF + 长鑫科技）开盘跳空的等权平均，±3% 折算为 ±100。红=正、绿=负，中轴 0。|信号分|&lt;10 视为震荡不计命中。历史已存云端，重新发布/换设备不丢失。</text>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">预测 vs 真实开盘</text>
+            <text class="sec-note">最近 {{rows.length}} 个交易日</text>
+        </view>
+
+        <view class="cross num" wx:if="{{cross}}">
+            <text class="cx-t">{{cross.date}}</text>
+            <text class="cx-i">预测 {{cross.scoreText}}</text>
+            <text class="cx-i">真实开盘 <text class="{{cross.openCls}}">{{cross.openText}}</text></text>
+            <text class="cx-hit {{cross.hitCls}}">{{cross.hitText}}</text>
+        </view>
+        <view class="cross-tip" wx:elif="{{!empty}}">触摸柱子查看当天预测与真实开盘</view>
+
+        <view class="chart-box">
+            <canvas id="accChart" type="2d" class="chart"
+                bindtouchstart="onStart"
+                bindtouchmove="onMove"
+                bindtouchend="onEnd"></canvas>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{rows.length}}">
+        <view class="sec-head">
+            <text class="sec-label">逐日记录</text>
+            <text class="sec-note">新 → 旧</text>
+        </view>
+        <view class="hrow" wx:for="{{rows}}" wx:key="date">
+            <text class="h-date num">{{item.date}}</text>
+            <text class="h-score num {{item.scoreCls}}">{{item.scoreText}}</text>
+            <text class="h-open num {{item.openCls}}">{{item.openText}}</text>
+            <text class="h-hit {{item.hitCls}}">{{item.hitText}}</text>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{empty}}">
+        <view class="empty">
+            <text class="empty-t">还没有记录</text>
+            <text class="empty-s">今天 A 股收盘（15:00）后打开首页即记录第一条预测，明天开盘后自动补上真实值。</text>
+        </view>
+    </view>
+</view>

@@ -1,0 +1,83 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="head">
+        <text class="h-title">添加自选</text>
+        <text class="h-sub">股票 / ETF / 股指期货都能加，加完首页可点开看日K与分时</text>
+    </view>
+
+    <view class="search">
+        <view class="s-input-wrap">
+            <input class="s-input" value="{{keyword}}" placeholder="代码或名称，如 NVDA / 台积电 / 513310"
+                   placeholder-class="s-ph" confirm-type="search" bindinput="onInput" bindconfirm="onSearchTap" />
+            <text class="s-clear" wx:if="{{keyword}}" bindtap="clearKeyword">✕</text>
+        </view>
+        <text class="s-btn" bindtap="onAddInput">{{searching ? '处理中' : '添加'}}</text>
+    </view>
+
+    <view class="tip" wx:if="{{tip}}">{{tip}}</view>
+    <view class="tip err" wx:if="{{searchErr}}">{{searchErr}}</view>
+
+    <view class="card" wx:if="{{results.length}}">
+        <view class="sec-head">
+            <text class="sec-label">搜索结果</text>
+            <text class="sec-note">点右侧添加</text>
+        </view>
+        <view class="row" wx:for="{{results}}" wx:key="sec">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.code}} · {{item.type}} · {{item.sec}}</text>
+            </view>
+            <text class="add-btn {{item.added ? 'added' : ''}}" bindtap="onAddResult"
+                  data-sec="{{item.sec}}" data-code="{{item.code}}" data-name="{{item.name}}" data-type="{{item.type}}">
+                {{item.added ? '已添加' : '+ 添加'}}
+            </text>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">常用标的</text>
+            <text class="sec-note">点一下即添加</text>
+        </view>
+        <view class="q-grp" wx:for="{{quick}}" wx:key="grp" wx:for-item="g">
+            <text class="q-title">{{g.grp}}</text>
+            <view class="chips">
+                <text class="chip" wx:for="{{g.items}}" wx:key="sec" bindtap="onAddQuick"
+                      data-sec="{{item.sec}}" data-code="{{item.code}}" data-name="{{item.name}}" data-type="{{item.type}}">
+                    {{item.name}}
+                </text>
+            </view>
+        </view>
+    </view>
+
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">我的自选</text>
+            <view class="mh-r">
+                <text class="sync-tag {{syncLabel === '已云同步' ? 'on' : ''}}" bindtap="onSyncTap">{{syncLabel}}</text>
+                <text class="sec-note">{{watch.length}}/{{max}}</text>
+            </view>
+        </view>
+
+        <view class="empty" wx:if="{{!watch.length}}">
+            <text class="empty-t">还没有自选</text>
+            <text class="empty-s">上面直接点常用标的，或输入代码后点「添加」</text>
+        </view>
+
+        <view class="row tap" wx:for="{{watch}}" wx:key="sec">
+            <view class="row-l" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.code}} · {{item.type || '自选'}} · {{item.sec}}</text>
+            </view>
+            <view class="row-r">
+                <text class="del" catchtap="onRemove" data-sec="{{item.sec}}">移除</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="foot">
+        <text>添加后回到首页即可看到实时报价；点任一行进入详情看日K / 分时 / 成交量。</text>
+        <text class="foot-warn">名称搜索需配置 searchapi.eastmoney.com 白名单；不配也能直接输代码添加。</text>
+    </view>
+</view>

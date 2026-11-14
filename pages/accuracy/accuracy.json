@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "次日倾向复盘",
+  "navigationBarBackgroundColor": "#0a0e13",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#0a0e13",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {}
+}

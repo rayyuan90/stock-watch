@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "A股量能对比",
+  "navigationBarBackgroundColor": "#0a0e13",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#0a0e13",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {}
+}

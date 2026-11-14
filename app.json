@@ -1,0 +1,20 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/setup/setup",
+    "pages/detail/detail",
+    "pages/add/add",
+    "pages/volume/volume",
+    "pages/accuracy/accuracy"
+  ],
+  "window": {
+    "navigationBarTitleText": "算力看盘",
+    "navigationBarBackgroundColor": "#0a0e13",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0a0e13",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

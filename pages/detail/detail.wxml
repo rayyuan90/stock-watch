@@ -1,0 +1,49 @@
+<view class="page">
+    <view class="head">
+        <view class="head-l">
+            <text class="h-name">{{name || code}}</text>
+            <text class="h-code num">{{code}} · {{sec}}</text>
+        </view>
+        <view class="head-r" wx:if="{{quote}}">
+            <text class="h-price num {{quote.cls}}">{{quote.priceText}}</text>
+            <text class="h-pct num {{quote.cls}}">{{quote.pctText}}</text>
+        </view>
+    </view>
+
+    <view class="ext-bar" wx:if="{{ext}}">
+        <text class="eb-item num {{ext.preCls}}" wx:if="{{ext.preText}}">{{ext.preText}}</text>
+        <text class="eb-item num {{ext.afterCls}}" wx:if="{{ext.afterText}}">{{ext.afterText}}</text>
+        <text class="eb-note">{{ext.note}}</text>
+    </view>
+
+    <view class="cross num" wx:if="{{cross}}">{{cross}}</view>
+    <view class="cross-tip" wx:elif="{{!hint}}">点击图表可查看某一天的数值</view>
+
+    <view class="hint" wx:if="{{hint}}">
+        <text class="hint-t">{{hint}}</text>
+        <text class="hint-s">真机需要把行情域名加入微信白名单；临时办法：右上角「…」→ 打开调试</text>
+    </view>
+
+    <view class="err" wx:if="{{error}}">{{error}}</view>
+
+    <view class="tabs">
+        <view class="tab {{tab === 'min' ? 'on' : ''}}" data-tab="min" bindtap="switchTab">分时</view>
+        <view class="tab {{tab === 'day' ? 'on' : ''}}" data-tab="day" bindtap="switchTab">日K</view>
+    </view>
+
+    <view class="chart-box">
+        <canvas id="chart" type="2d" class="chart"
+            bindtouchstart="onChartTap"
+            bindtouchmove="onChartMove"
+            bindtouchend="onChartEnd"></canvas>
+        <view class="chart-mask" wx:if="{{loading}}">
+            <view class="spinner"></view>
+            <text>加载图表数据…</text>
+        </view>
+    </view>
+
+    <view class="foot">
+        <text>分时 15 秒自动刷新 · 数据来自东方财富</text>
+        <text>更新于 {{updatedAt}}</text>
+    </view>
+</view>
