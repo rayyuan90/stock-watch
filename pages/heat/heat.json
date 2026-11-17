@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "板块热力图",
+  "usingComponents": {},
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
+}

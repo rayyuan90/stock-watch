@@ -1640,3 +1640,53 @@
     color: #6d7a90;
     line-height: 1.6;
 }
+
+/* ---- 全球市场入口（新增模块，不改动原有卡片） ---- */
+.tb-subrow {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 14rpx;
+    margin-top: 12rpx;
+}
+
+.tb-subrow .tb-sub {
+    margin-top: 0;
+}
+
+/* 四个胶囊（全球市场/热力图/资金四类/交易中）统一尺寸，禁止换行 */
+.tb-global {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 20rpx;
+    line-height: 1;
+    color: #6aa9e9;
+    padding: 9rpx 18rpx;
+    border-radius: 100rpx;
+    border: 1rpx solid rgba(106, 169, 233, 0.35);
+    background: rgba(106, 169, 233, 0.1);
+    letter-spacing: 1rpx;
+}
+
+.tb-global:active {
+    background: rgba(106, 169, 233, 0.22);
+}
+
+/* 「交易中」状态胶囊：与左侧三枚同高同字号，颜色保持红色系 */
+.status-inline {
+    flex: 0 0 auto;
+    padding: 9rpx 18rpx;
+    border: 1rpx solid transparent;
+    margin-top: 0;
+}
+
+.status-inline .pulse {
+    width: 10rpx;
+    height: 10rpx;
+    margin-right: 8rpx;
+}
+
+.status-inline .status-text {
+    font-size: 20rpx;
+    line-height: 1;
+}

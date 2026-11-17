@@ -1,0 +1,48 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="hhead">
+        <view class="hh-l">
+            <text class="hh-title">板块热力图</text>
+            <text class="hh-sub">行业 / 概念 · 主力资金 · 涨跌幅</text>
+        </view>
+        <view class="hh-r">
+            <view class="hh-state {{offlineMsg ? 'warn' : ''}}">
+                <view class="hh-dot"></view>
+                <text>{{stateText}}</text>
+            </view>
+            <text class="hh-clock num" wx:if="{{updatedAt}}">{{updatedAt}}</text>
+        </view>
+    </view>
+
+    <view class="warnbar" wx:if="{{offlineMsg}}">
+        <text>{{offlineMsg}}</text>
+    </view>
+
+    <view class="card">
+        <view class="tabs">
+            <text class="tab {{tab == 'ind' ? 'on' : ''}}" bindtap="setTab" data-tab="ind">行业</text>
+            <text class="tab {{tab == 'con' ? 'on' : ''}}" bindtap="setTab" data-tab="con">概念</text>
+            <view class="tabs-gap"></view>
+            <view class="dirbox">
+                <text class="dir {{dir == 'up' ? 'on up' : ''}}" bindtap="setDir" data-dir="up">涨幅前十</text>
+                <text class="dir {{dir == 'down' ? 'on down' : ''}}" bindtap="setDir" data-dir="down">跌幅前十</text>
+            </view>
+        </view>
+
+        <view class="tiles" wx:if="{{tiles.length}}">
+            <view class="tile {{item.w}}" style="{{item.bg}}" wx:for="{{tiles}}" wx:key="code"
+                bindtap="openBoard" data-code="{{item.code}}" data-name="{{item.name}}">
+                <text class="t-name">{{item.name}}</text>
+                <text class="t-flow">{{item.flowText}}</text>
+                <text class="t-pct num">{{item.pctText}}</text>
+            </view>
+        </view>
+
+        <view class="empty" wx:else>
+            <text>暂无数据</text>
+        </view>
+    </view>
+
+    <view class="tip">板块口径为东财行业/概念板块；颜色越深代表涨（跌）幅越大；瓦片显示主力净流入额与板块涨跌幅。下拉可刷新。</view>
+</view>

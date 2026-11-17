@@ -246,12 +246,71 @@ var A_TH = {
     rangeMin: 0.010       // 振幅下限1%
 };
 
-var AMT_AS_VOL = false; // 降级源（腾讯/缓存）无成交额时，量能按成交量(手)口径展示
+var AMT_AS_VOL = false; // 降级源（腾讯/缓存）无成交额时，成交额按「成交量×VWAP」估算（仍为亿元口径）
+
+var VWAP_KEY = 'kanpan:vwapCache';
+var VWAP_DEFAULT = { sh: 1523, sz: 1490 }; // 元/手（两市每手均价兜底值，实际以腾讯实时接口为准）
 
 function fmtAmt(v) {
     if (!isFinite(v)) return '--';
-    if (AMT_AS_VOL) return v >= 1e8 ? (v / 1e8).toFixed(2) + '亿手' : (v / 1e4).toFixed(0) + '万手';
+    // 两种口径下 amts 都是亿元（降级源用成交量×VWAP估算），统一按金额展示
     return v >= 10000 ? (v / 10000).toFixed(2) + '万亿' : v.toFixed(0) + '亿';
+}
+
+/**
+ * 取沪深两市「每手均价 VWAP」（元/手）。
+ * 指数点位不是股票价格（上证 3620 点 ≠ 平均股价 ~15 元），不能拿成交量×指数点位
+ * 估成交额；腾讯实时接口里同时有当日真实成交额与成交量，相除即得每手均价。
+ * 每手均价在 46 日窗口内漂移仅几个百分点，用它把历史成交量换算成亿元成交额，
+ * 与东财真实成交额口径基本一致 → 电脑/手机两端 M 值一致。
+ * 结果写缓存：盘前（成交额=0）或请求失败时用上一次缓存兜底。
+ */
+function fetchVwap() {
+    return new Promise(function (resolve) {
+        wx.request({
+            url: 'https://qt.gtimg.cn/q=sh000001,sz399001',
+            timeout: 6000,
+            success: function (res) {
+                var text = typeof (res && res.data) === 'string' ? res.data : '';
+                var out = { sh: null, sz: null };
+                try {
+                    [['sh000001', 'sh'], ['sz399001', 'sz']].forEach(function (pair) {
+                        var m = text.match(new RegExp('v_' + pair[0] + '="([^"]*)"'));
+                        if (!m) return;
+                        var f = m[1].split('~');
+                        var vol = Number(f[36]);        // 成交量（手）
+                        var amtWan = Number(f[37]);    // 成交额（万元）
+                        if (vol > 0 && amtWan > 0) out[pair[1]] = amtWan * 1e4 / vol;
+                    });
+                } catch (e) { /* 解析失败走兜底 */ }
+                // 有值 → 更新缓存；缺哪个 → 用缓存/默认值补
+                try {
+                    if (out.sh > 0 && out.sz > 0) {
+                        wx.setStorageSync(VWAP_KEY, { sh: out.sh, sz: out.sz, ts: Date.now() });
+                    } else {
+                        var c = wx.getStorageSync(VWAP_KEY);
+                        if (c && c.sh > 0) {
+                            if (!(out.sh > 0)) out.sh = c.sh;
+                            if (!(out.sz > 0)) out.sz = c.sz;
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+                if (!(out.sh > 0)) out.sh = VWAP_DEFAULT.sh;
+                if (!(out.sz > 0)) out.sz = VWAP_DEFAULT.sz;
+                resolve(out);
+            },
+            fail: function () {
+                var out = { sh: null, sz: null };
+                try {
+                    var c2 = wx.getStorageSync(VWAP_KEY);
+                    if (c2 && c2.sh > 0) { out.sh = c2.sh; out.sz = c2.sz; }
+                } catch (e) { /* ignore */ }
+                if (!(out.sh > 0)) out.sh = VWAP_DEFAULT.sh;
+                if (!(out.sz > 0)) out.sz = VWAP_DEFAULT.sz;
+                resolve(out);
+            }
+        });
+    });
 }
 
 /** 截至 i 日连续站上 20 日均量的天数 */
@@ -580,15 +639,21 @@ function loadAGame() {
 
         // 对齐日期（两者交易日一致）
         var n = Math.min(sh.length, sz.length);
-        var bars = [], dates = [], closes = [], amts = [];
-        // 降级源适配：腾讯/缓存无成交额(amount=0)时，用成交量代替量能口径。
-        // v3 状态机的全部判定（量比/分位/连站天数）都是比值，与绝对单位无关，安全。
+        // 降级源适配：腾讯/缓存无成交额(amount=0)时，用「成交量×VWAP」估算亿元口径的
+        // 成交额，而不是拿成交量（手）裸替。原因：综合动量 M 的 R 项
+        // rRaw = A_R.amt × (成交额 − 20日均额) / 流通市值 是量纲敏感的，
+        // 手和亿元差几个数量级，直接替换会把 R 钳到 0/100，导致不同设备 M 值天差地别。
+        // 注意不能用指数点位当价格：上证 3620 点 ≠ 平均股价 ~15 元，VWAP 见 fetchVwap。
+        // v3 状态机的判定（量比/分位/连站天数）是比值，两种口径下都不受影响。
         var amountMissing = !(sh[0].amount > 0) && !(sz[0].amount > 0);
         AMT_AS_VOL = amountMissing;
         var barsSource = sh.source || '';
+        var vwapReady = amountMissing ? fetchVwap() : Promise.resolve(null);
+        return vwapReady.then(function (vwap) {
+        var bars = [], dates = [], closes = [], amts = [];
         for (var i = n - Math.min(n, 46); i < n; i++) {
             var amtYi = amountMissing
-                ? (sh[i].vol + sz[i].vol)  // 手（沪+深合计）
+                ? (sh[i].vol * vwap.sh + sz[i].vol * vwap.sz) / 1e8  // 手 × 元/手 → 亿元
                 : (sh[i].amount + sz[i].amount) / 1e8; // 亿元（沪+深=两市）
             var bar = {
                 time: sh[i].time,
@@ -873,10 +938,11 @@ function loadAGame() {
                 // 数据源标注：东财正常时为空；降级时提示口径/新鲜度
                 sourceText: amountMissing
                     ? (barsSource === '腾讯'
-                        ? '日K来自腾讯备用源 · 量能按成交量口径（状态判定不受影响）'
+                        ? '日K来自腾讯备用源 · 成交额按成交量×均价估算（模型结论与东财源一致）'
                         : '日K来自本地缓存(' + (barsSource || '') .replace(/^缓存/, '') + ') · 数据较旧')
                     : ''
             };
+        });
         });
     });
 }

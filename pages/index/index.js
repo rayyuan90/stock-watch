@@ -62,6 +62,7 @@ function decorateUsGame(u) {
     u.predCls = predClsOf(u.pred);
     u.mPct = Math.max(0, Math.min(100, 50 + u.M * 2));
     u.mCls = u.M >= 4 ? 'up' : (u.M <= -4 ? 'down' : 'flat');
+    u.mText = u.M.toFixed(2);
     u.tText = isFinite(u.T) ? u.T.toFixed(1) + '天' : '∞';
     u.bars = [
         { label: 'F 空头燃料', pct: u.F, text: u.F.toFixed(1) + '%' },
@@ -1590,6 +1591,18 @@ Page({
                 });
             }
         });
+    },
+
+    goGlobal: function () {
+        wx.navigateTo({ url: '/pages/global/global' });
+    },
+
+    goHeat: function () {
+        wx.navigateTo({ url: '/pages/heat/heat' });
+    },
+
+    goMflow: function () {
+        wx.navigateTo({ url: '/pages/mflow/mflow' });
     },
 
     goSetup: function () {

@@ -1,0 +1,50 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="hhead">
+        <view class="hh-l">
+            <text class="hh-title">{{name}}</text>
+            <text class="hh-sub">{{bk}}{{bk ? ' · ' : ''}}{{secid}} · A股</text>
+        </view>
+        <view class="hh-r">
+            <text class="q-price num {{qcls}}">{{priceText}}</text>
+            <text class="q-pct num {{qcls}}">{{pctText}}</text>
+        </view>
+    </view>
+
+    <view class="tabs">
+        <text class="tab {{tab == 'trend' ? 'on' : ''}}" bindtap="setTab" data-tab="trend">分时</text>
+        <text class="tab {{tab == 'day' ? 'on' : ''}}" bindtap="setTab" data-tab="day">日线</text>
+        <view class="tabs-gap"></view>
+        <text class="upd" wx:if="{{updatedAt}}">{{updatedAt}}</text>
+    </view>
+
+    <view class="card">
+        <block wx:if="{{tab == 'trend'}}">
+            <view class="legend">
+                <text class="lg-k">现价</text>
+                <text class="lg-v num c-blue">{{trendLast}}</text>
+                <text class="lg-k" wx:if="{{hasAvg}}">均价</text>
+                <text class="lg-v num c-orange" wx:if="{{hasAvg}}">{{trendAvg}}</text>
+                <text class="lg-k">昨收</text>
+                <text class="lg-v num c-gray">{{preText}}</text>
+            </view>
+            <canvas id="trendC" type="2d" class="chart"></canvas>
+            <view class="cstate {{trendState == 'loading' ? '' : 'cwarn'}}" wx:if="{{trendState != 'ok'}}">
+                {{trendState == 'loading' ? '分时数据加载中…' : trendMsg}}
+            </view>
+        </block>
+
+        <block wx:else>
+            <view class="legend" wx:if="{{dayInfo}}">
+                <text class="lg-v c-gray">{{dayInfo}}</text>
+            </view>
+            <canvas id="dayC" type="2d" class="chart tall"></canvas>
+            <view class="cstate {{dayState == 'loading' ? '' : 'cwarn'}}" wx:if="{{dayState != 'ok'}}">
+                {{dayState == 'loading' ? '日线数据加载中…' : dayMsg}}
+            </view>
+        </block>
+    </view>
+
+    <view class="tip">K线为前复权，量能单位为手；红涨绿跌。下拉可刷新，停留时每 30 秒自动更新。</view>
+</view>

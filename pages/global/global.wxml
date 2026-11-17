@@ -1,0 +1,48 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="ghead">
+        <view class="gh-l">
+            <text class="gh-title">全球市场</text>
+            <text class="gh-sub">指数 · 期货 · 贵金属 · 汇率</text>
+        </view>
+        <view class="gh-r">
+            <view class="gh-state {{cacheOnly ? 'warn' : ''}}">
+                <view class="gh-dot"></view>
+                <text>{{stateText}}</text>
+            </view>
+            <text class="gh-clock num">{{clock}}</text>
+        </view>
+    </view>
+
+    <view class="srcwarn" wx:if="{{warn}}">
+        <view class="sw-l">
+            <text class="sw-t">{{warn}}</text>
+            <text class="sw-s">需要在微信后台把 hq.sinajs.cn 加入 request 合法域名（临时可用右上角「…」→ 打开调试）</text>
+        </view>
+        <view class="sw-btn" bindtap="copyDomain">复制域名</view>
+    </view>
+
+    <view class="card" wx:for="{{groups}}" wx:key="key">
+        <view class="card-head">
+            <text class="card-title">{{item.title}}</text>
+            <text class="card-tag">{{item.sub}}</text>
+        </view>
+
+        <view class="q-row" wx:for="{{item.items}}" wx:for-item="q" wx:key="key" bindtap="openDetail" data-key="{{q.key}}">
+            <view class="q-l">
+                <text class="q-name">{{q.name}}</text>
+                <text class="q-sub">{{q.subText}}</text>
+            </view>
+            <view class="q-r">
+                <text class="q-price num {{q.cls}}">{{q.priceText}}</text>
+                <text class="q-pct num {{q.cls}}">{{q.pctText}}</text>
+            </view>
+        </view>
+    </view>
+
+    <view class="foot">
+        <text>数据来源：东方财富 · 腾讯行情 · 新浪财经。外盘与港股期货含夜盘，数值有延迟，仅作方向参考。</text>
+        <text>涨跌配色按 A 股习惯：红涨绿跌。下拉可手动刷新，停留本页每 20 秒自动更新。</text>
+    </view>
+</view>

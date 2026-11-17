@@ -1,0 +1,70 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="hhead">
+        <view class="hh-l">
+            <text class="hh-title">四类资金流向</text>
+            <text class="hh-sub">机构 · 主力 · 大户 · 散户（沪深两市合计）</text>
+        </view>
+        <view class="hh-r">
+            <view class="hh-state {{offlineMsg ? 'warn' : ''}}">
+                <view class="hh-dot"></view>
+                <text>{{stateText}}</text>
+            </view>
+            <text class="hh-clock num" wx:if="{{updatedAt}}">{{updatedAt}}</text>
+        </view>
+    </view>
+
+    <view class="warnbar" wx:if="{{offlineMsg}}">
+        <text>{{offlineMsg}}</text>
+    </view>
+
+    <view class="card">
+        <view class="card-head">
+            <text class="card-title">今日净流入（沪深合计）</text>
+            <text class="card-tag" wx:if="{{updatedAt}}">{{updatedAt}}</text>
+        </view>
+
+        <view class="lg-grid" wx:if="{{items.length}}">
+            <view class="lg-item" wx:for="{{items}}" wx:key="key">
+                <view class="lg-dot" style="background:{{item.dot}}"></view>
+                <view class="lg-body">
+                    <view class="lg-line1">
+                        <text class="lg-name">{{item.label}}</text>
+                        <text class="lg-val num {{item.cls}}">{{item.valText}}</text>
+                    </view>
+                    <text class="lg-sub">{{item.sub}}</text>
+                </view>
+            </view>
+        </view>
+
+        <view class="empty" wx:else>
+            <text>暂无数据</text>
+        </view>
+    </view>
+
+    <view class="card" wx:if="{{parts.length}}">
+        <view class="card-head">
+            <text class="card-title">分市场明细</text>
+        </view>
+        <view class="pt-head">
+            <text class="pt-name">市场</text>
+            <text class="pt-col">主力</text>
+            <text class="pt-col">机构</text>
+            <text class="pt-col">大户</text>
+            <text class="pt-col">散户</text>
+        </view>
+        <view class="pt-row" wx:for="{{parts}}" wx:key="name">
+            <text class="pt-name">{{item.name}}</text>
+            <text class="pt-col num {{item.main.cls}}">{{item.main.text}}</text>
+            <text class="pt-col num {{item.inst.cls}}">{{item.inst.text}}</text>
+            <text class="pt-col num {{item.big.cls}}">{{item.big.text}}</text>
+            <text class="pt-col num {{item.retail.cls}}">{{item.retail.text}}</text>
+        </view>
+    </view>
+
+    <view class="tip">
+        口径（东财资金流）：主力 = 超大单 + 大单；机构 = 超大单；大户 = 大单；散户 = 中单 + 小单。
+        全市场净流入合计约为 0（有买必有卖）；正值=净流入（红），负值=净流出（绿）。下拉可刷新。
+    </view>
+</view>

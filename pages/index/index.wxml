@@ -5,12 +5,17 @@
         <view class="tb-left">
             <text class="tb-title">算力看盘</text>
             <text class="tb-sub">中韩半导体 · 跨市场联动</text>
+            <view class="tb-subrow">
+                <text class="tb-global" bindtap="goGlobal">全球市场</text>
+                <text class="tb-global" bindtap="goHeat">热力图</text>
+                <text class="tb-global" bindtap="goMflow">资金四类</text>
+                <view class="status status-inline {{live ? 'status-live' : ''}}">
+                    <view class="pulse"></view>
+                    <text class="status-text">{{statusText}}</text>
+                </view>
+            </view>
         </view>
         <view class="tb-right">
-            <view class="status {{live ? 'status-live' : ''}}">
-                <view class="pulse"></view>
-                <text class="status-text">{{statusText}}</text>
-            </view>
             <text class="clock num">{{updatedAt}}</text>
         </view>
     </view>
@@ -462,7 +467,7 @@
                     <view class="bg-mmark"></view>
                     <view class="bg-mfill {{usGame.mCls}}" style="width:{{usGame.mPct}}%"></view>
                 </view>
-                <text class="bg-mval num {{usGame.mCls}}">{{usGame.M}}</text>
+                <text class="bg-mval num {{usGame.mCls}}">{{usGame.mText}}</text>
             </view>
 
             <view class="bg-bars">

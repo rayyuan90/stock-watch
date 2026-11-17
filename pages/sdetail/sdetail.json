@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "个股分时",
+  "usingComponents": {},
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark"
+}

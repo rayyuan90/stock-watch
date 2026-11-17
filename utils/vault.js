@@ -18,7 +18,7 @@
  * 5) 另提供导出/导入文本（复制到剪贴板 / 从剪贴板恢复），换手机时可手工搬运。
  */
 var PREFIX = 'kanpan:';
-var SKIP_PREFIX = ['barscache_'];   // 行情K线缓存可重算，且体积大，不备份
+var SKIP_PREFIX = ['barscache_', 'kanpan:globalCache'];   // 行情缓存可重新拉取，不占备份空间
 var META_KEY = 'vault:meta';        // 注意不带 kanpan: 前缀，避免自我递归
 
 var KNOWN = [

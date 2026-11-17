@@ -1,0 +1,45 @@
+<view class="page">
+    <view class="glow"></view>
+
+    <view class="hhead">
+        <view class="hh-l">
+            <text class="hh-title">{{bkName}}</text>
+            <text class="hh-sub">共 {{total}} 只成分股 · 显示{{dir == 'up' ? '涨幅' : '跌幅'}}前 {{stocks.length}}</text>
+        </view>
+        <view class="hh-r">
+            <view class="hh-state {{err ? 'warn' : ''}}">
+                <view class="hh-dot"></view>
+                <text>{{stateText}}</text>
+            </view>
+            <text class="hh-clock num" wx:if="{{updatedAt}}">{{updatedAt}}</text>
+        </view>
+    </view>
+
+    <view class="warnbar" wx:if="{{err}}">
+        <text>{{err}}</text>
+    </view>
+
+    <view class="card">
+        <view class="st-head">
+            <text class="st-name">股票</text>
+            <text class="st-col">现价</text>
+            <text class="st-col">涨跌幅</text>
+            <text class="st-col">主力净流入</text>
+        </view>
+        <view class="st-row" wx:for="{{stocks}}" wx:key="code" bindtap="openStock"
+            data-secid="{{item.secid}}" data-name="{{item.name}}">
+            <view class="st-namecell">
+                <text class="st-name">{{item.name}}</text>
+                <text class="st-code">{{item.code}}</text>
+            </view>
+            <text class="st-col num">{{item.priceText}}</text>
+            <text class="st-col num {{item.cls}}">{{item.pctText}}</text>
+            <text class="st-col num {{item.cls}}">{{item.flowText}}</text>
+        </view>
+        <view class="empty" wx:if="{{!stocks.length && !err}}">
+            <text>加载中…</text>
+        </view>
+    </view>
+
+    <view class="tip">点击任意股票查看分时图、日K与量能；主力净流入红=流入、绿=流出。下拉可刷新。</view>
+</view>

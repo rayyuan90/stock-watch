@@ -5,7 +5,13 @@
     "pages/detail/detail",
     "pages/add/add",
     "pages/volume/volume",
-    "pages/accuracy/accuracy"
+    "pages/accuracy/accuracy",
+    "pages/global/global",
+    "pages/gdetail/gdetail",
+    "pages/bstock/bstock",
+    "pages/sdetail/sdetail",
+    "pages/heat/heat",
+    "pages/mflow/mflow"
   ],
   "window": {
     "navigationBarTitleText": "算力看盘",

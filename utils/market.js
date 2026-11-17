@@ -223,6 +223,98 @@ function fetchTencent() {
     return req({ url: TX_URL + TX_LIST, dataType: 'text' }).then(parseTencent);
 }
 
+// ---------------- 报价降级源：腾讯全市场（东财被限流时兜底） ----------------
+
+// 特殊映射：东财市场号 → 腾讯报价代码（krKOSPI / 中金所期货在腾讯没有报价，故障时显示 --）
+var TX_SPECIAL = { '100.NDX': 'usNDX' };
+
+/** secid → 腾讯报价代码（sh/sz/hk/kr/us），不支持的市场返回空 */
+function txQuoteCode(sec) {
+    if (TX_SPECIAL[sec]) return TX_SPECIAL[sec];
+    var p = String(sec || '').split('.');
+    if (p.length !== 2) return '';
+    var mk = p[0], code = String(p[1] || '');
+    if (mk === '1' || mk === '0') {
+        if (!/^\d{6}$/.test(code)) return '';
+        return (mk === '1' ? 'sh' : 'sz') + code;
+    }
+    if (mk === '116') return 'hk' + code;   // 港股：116.00700 → hk00700
+    if (mk === '177') return 'kr' + code;   // 韩股：177.005930 → kr005930
+    if (isUsSec(sec)) return 'us' + code;   // 美股：105.NVDA → usNVDA
+    return '';
+}
+
+function txNum(v) {
+    if (v === '' || v === undefined || v === null) return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+}
+
+/** 解析腾讯批量报价文本，key = secid（与东财 parseEastMoney 对齐） */
+function mergeTxQuotes(text, byCode, out) {
+    if (typeof text !== 'string') return;
+    var re = /v_([A-Za-z0-9_]+)="([^"]*)"/g;
+    var m = re.exec(text);
+    while (m !== null) {
+        var txCode = m[1];
+        var sec = byCode[txCode];
+        var p = m[2].split('~');
+        if (sec && p.length > 34) {
+            var price = txNum(p[3]);
+            var vol = txNum(p[6]);
+            // 腾讯返回 GBK 编码，小程序按 UTF-8 解码中文会变乱码（U+FFFD）；
+            // 数字字段不受影响，名称置空后页面自动回退到自选配置里的名字
+            var nm = p[1] || '';
+            if (nm.indexOf('\uFFFD') >= 0) nm = '';
+            // 精度按返回字符串的小数位走（ETF 3.610→3位、港股 380.000→3位、指数 2位）
+            var digits = (String(p[3]).split('.')[1] || '').length || 2;
+            out[sec] = {
+                id: sec,
+                sec: sec,
+                market: Number(String(sec).split('.')[0]),
+                code: p[2] || txCode,
+                name: nm,
+                price: price,
+                pct: txNum(p[32]),
+                change: txNum(p[31]),
+                volume: vol,
+                // 腾讯的成交额字段位置各市场不一，直接用 量×价 估算（A股手×100股）；
+                // 指数（100.NDX 等）的成交量不适用量×价，置空
+                amount: (price !== null && vol !== null && String(sec).indexOf('100.') !== 0)
+                    ? vol * price * (/^(sh|sz)/.test(txCode) ? 100 : 1) : null,
+                high: txNum(p[33]),
+                low: txNum(p[34]),
+                open: txNum(p[5]),
+                prevClose: txNum(p[4]),
+                premium: null,
+                digits: digits,
+                src: 'tx'
+            };
+        }
+        m = re.exec(text);
+    }
+}
+
+/** 腾讯批量报价：按 secid 列表拉取（30个一批），key=secid */
+function fetchQuotesTx(secids) {
+    var codes = [], byCode = {};
+    for (var i = 0; i < secids.length; i++) {
+        var c = txQuoteCode(secids[i]);
+        if (c && !byCode[c]) { byCode[c] = secids[i]; codes.push(c); }
+    }
+    if (!codes.length) return Promise.resolve({});
+    var jobs = [];
+    for (var j = 0; j < codes.length; j += 30) {
+        jobs.push(req({ url: TX_URL + codes.slice(j, j + 30).join(','), dataType: 'text', timeout: 8000 }));
+    }
+    return Promise.all(jobs).then(function (texts) {
+        var out = {};
+        for (var k = 0; k < texts.length; k++) mergeTxQuotes(texts[k], byCode, out);
+        if (!Object.keys(out).length) throw new Error('腾讯报价为空');
+        return out;
+    });
+}
+
 // ---------------- 搜索 / 单个报价（手动添加自选用） ----------------
 
 var SEARCH_URL = 'https://searchapi.eastmoney.com/api/suggest/get';
@@ -489,44 +581,66 @@ function fetchAll() {
         for (key in tx) {
             if (key !== '__error') quotes[key] = tx[key];
         }
-        // 盘前盘后并入对应美股
-        for (key in usExt) {
-            if (quotes[key] && usExt[key]) {
-                quotes[key].prePrice = usExt[key].prePrice;
-                quotes[key].prePct = usExt[key].prePct;
-                quotes[key].afterPrice = usExt[key].afterPrice;
-                quotes[key].afterPct = usExt[key].afterPct;
-            }
-        }
 
         var parts = [];
         if (em.__error) parts.push('东财 ' + friendlyNetErr(em.__error));
         if (tx.__error) parts.push('腾讯 ' + friendlyNetErr(tx.__error));
         var detail = parts.join(' / ');
-        // 托管预览等受限运行时会整体拦截外部请求（path not allowed），给出明确指引
-        if (parts.length && detail.indexOf('path not allowed') >= 0) {
-            detail += '。当前运行环境限制了外部网络请求（云端数据仍可读），实时行情请用微信开发者工具编译运行，或在真机上打开调试模式';
-        }
 
-        if (Object.keys(quotes).length < 3) {
-            return fallback(detail);
-        }
+        // 东财挂了/返回太少 → 腾讯全市场报价兜底（key 同为 secid，页面无需感知）
+        var txFallbackNeeded = !!(em.__error) || Object.keys(quotes).length < 3;
+        var txReady = txFallbackNeeded
+            ? fetchQuotesTx(allSecs()).then(function (txq) {
+                var added = 0;
+                for (var k2 in txq) {
+                    if (!quotes[k2]) { quotes[k2] = txq[k2]; added++; }
+                }
+                if (added > 0) {
+                    if (parts.length) detail = '东财接口被限流，报价已切换到腾讯备用源（ETF折溢价率暂缺）';
+                    else detail = detail;
+                }
+                return added;
+            }).catch(function () {
+                return 0;
+            })
+            : Promise.resolve(0);
 
-        // 成功后顺手写云端快照，60 秒最多一次，失败静默
-        var now = Date.now();
-        if (now - lastSaveAt > SAVE_INTERVAL) {
-            lastSaveAt = now;
-            cloudData.saveSnapshot(quotes).then(function () { }).catch(function () { });
-        }
+        return txReady.then(function (added) {
+            // 盘前盘后并入对应美股
+            for (key in usExt) {
+                if (quotes[key] && usExt[key]) {
+                    quotes[key].prePrice = usExt[key].prePrice;
+                    quotes[key].prePct = usExt[key].prePct;
+                    quotes[key].afterPrice = usExt[key].afterPrice;
+                    quotes[key].afterPct = usExt[key].afterPct;
+                }
+            }
 
-        return {
-            quotes: quotes,
-            error: '',
-            offline: false,
-            offlineAt: '',
-            detail: detail,
-            time: new Date()
-        };
+            // 托管预览等受限运行时会整体拦截外部请求（path not allowed），给出明确指引
+            if (parts.length && detail.indexOf('path not allowed') >= 0) {
+                detail += '。当前运行环境限制了外部网络请求（云端数据仍可读），实时行情请用微信开发者工具编译运行，或在真机上打开调试模式';
+            }
+
+            if (Object.keys(quotes).length < 3) {
+                return fallback(detail);
+            }
+
+            // 成功后顺手写云端快照，60 秒最多一次，失败静默
+            var now = Date.now();
+            if (now - lastSaveAt > SAVE_INTERVAL) {
+                lastSaveAt = now;
+                cloudData.saveSnapshot(quotes).then(function () { }).catch(function () { });
+            }
+
+            return {
+                quotes: quotes,
+                error: '',
+                offline: false,
+                offlineAt: '',
+                detail: detail,
+                time: new Date()
+            };
+        });
     }).catch(function (e) {
         return offlineResult((e && e.message) || '请求异常');
     });
