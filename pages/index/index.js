@@ -11,6 +11,7 @@ var bgame = require('../../utils/bgame');
 var bgHist = require('../../utils/bgHist');
 var verify = require('../../utils/verify');
 var vault = require('../../utils/vault');
+var hktech = require('../../utils/hktech');
 
 /** 把模型读数转成界面字段（条形、配色、文案） */
 function quadClsOf(quad) {
@@ -213,6 +214,9 @@ Page({
         live: false,
         hero: null,
         holdings: [],
+        hstechRow: null,
+        hkTech: [],
+        hkAnalysis: null,
         korea: [],
         us: [],
         aShare: [],
@@ -820,6 +824,14 @@ Page({
 
         var state = marketState(time);
         var blocked = market.isDomainError(detail) || market.isDomainError(error);
+        // 港股科技板块：恒科指数 + 14 只核心标的 + 次日倾向分析
+        var hste = q[hktech.INDEX_SEC];
+        var hkTech = [];
+        for (var hk = 0; hk < hktech.BASKET.length; hk++) {
+            var hb = hktech.BASKET[hk];
+            hkTech.push(quoteRow(q[hb.sec], hb.name, hb.code));
+        }
+        var hkAnalysis = hktech.buildAnalysis(q);
         // 明日实操验证面板：依赖实时行情 + 同刻量比基准，20 秒节流
         this.updateVerify(q, time);
         // 托管预览/H5 沙箱只允许 /cloud/ 请求，外部行情请求被整体拦截；
@@ -849,6 +861,9 @@ Page({
             live: state.live,
             hero: hero,
             holdings: holdings,
+            hstechRow: quoteRow(hste, '恒生科技指数', 'HSTECH'),
+            hkTech: hkTech,
+            hkAnalysis: hkAnalysis,
             korea: [
                 koreaRow(sk, 'SK海力士', '000660.KS'),
                 koreaRow(samsung, '三星电子', '005930.KS'),

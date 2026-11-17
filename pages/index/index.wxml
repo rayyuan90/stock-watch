@@ -40,6 +40,65 @@
         </view>
     </view>
 
+    <view class="card">
+        <view class="sec-head">
+            <text class="sec-label">港股科技板块</text>
+            <text class="sec-note">恒科指数 · 14 只核心标的 · 点行看日K分时</text>
+        </view>
+
+        <view class="row tap" bindtap="goDetail" data-sec="124.HSTECH" data-name="恒生科技指数">
+            <view class="row-l">
+                <text class="row-name">恒生科技指数</text>
+                <text class="row-code num">HSTECH · 港股</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{hstechRow.cls}}">{{hstechRow.priceText}}</text>
+                <text class="row-pct num {{hstechRow.cls}}">{{hstechRow.pctText}}</text>
+            </view>
+        </view>
+
+        <view class="row tap" wx:for="{{hkTech}}" wx:key="code" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+            <view class="row-l">
+                <text class="row-name">{{item.name}}</text>
+                <text class="row-code num">{{item.code}} · 港元</text>
+            </view>
+            <view class="row-r">
+                <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
+                <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
+            </view>
+        </view>
+
+        <view class="hk-sub" wx:if="{{hkAnalysis}}">
+            <view class="signal-head">
+                <text class="hk-sub-title">港股次日倾向</text>
+                <text class="sec-badge {{hkAnalysis.cls}}">{{hkAnalysis.label}}</text>
+            </view>
+            <view class="signal-main">
+                <text class="score num {{hkAnalysis.cls}}">{{hkAnalysis.scoreText}}</text>
+                <view class="gauge">
+                    <view class="gauge-track">
+                        <view class="gauge-fill {{hkAnalysis.cls}}" style="width:{{hkAnalysis.barPct}}%"></view>
+                        <view class="gauge-dot {{hkAnalysis.cls}}" style="left:{{hkAnalysis.barPct}}%"></view>
+                    </view>
+                    <view class="gauge-axis">
+                        <text>偏空</text>
+                        <text>震荡</text>
+                        <text>偏多</text>
+                    </view>
+                    <text class="signal-hint">{{hkAnalysis.hint}}</text>
+                </view>
+            </view>
+            <view class="factors">
+                <view class="factor" wx:for="{{hkAnalysis.factors}}" wx:key="name">
+                    <text class="f-name">{{item.name}}</text>
+                    <text class="f-val num {{item.cls}}">{{item.text}}</text>
+                    <text class="f-detail">{{item.detail}}</text>
+                </view>
+            </view>
+            <text class="hk-note">{{hkAnalysis.note}}</text>
+        </view>
+    </view>
+
     <view class="card signal" wx:if="{{signalData}}">
         <view class="signal-head">
             <text class="sec-label">次日倾向</text>

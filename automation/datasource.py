@@ -191,6 +191,26 @@ def fetch_latest(policy_stack: Optional[List[PolicyVector]] = None,
     try:
         idx = ak.stock_zh_index_daily(symbol=index_symbol).copy()
         idx = idx.tail(_LOOKBACK).reset_index(drop=True)
+        idx["date"] = idx["date"].astype(str).str[:10]
+        # 新浪指数日线常在收盘后数小时才补当日K线, 而涨停/大单/解禁等慢变量
+        # 用的是当日收盘快照. 若不补齐, 会写出"ymd=昨日 但慢变量已是今日"的错位行.
+        # 腾讯日线通常更早更新, 用其当日 OHLC 补齐(volume 为"手", 需 x100 换算成股).
+        try:
+            _tx = ak.stock_zh_index_daily_tx(symbol=index_symbol).copy()
+            _tx["date"] = _tx["date"].astype(str).str[:10]
+            if str(_tx["date"].iloc[-1]) > str(idx["date"].iloc[-1]):
+                _r = _tx.iloc[-1]
+                idx = pd.concat([idx, pd.DataFrame([{
+                    "date": str(_r["date"]),
+                    "open": float(_r["open"]), "high": float(_r["high"]),
+                    "low": float(_r["low"]), "close": float(_r["close"]),
+                    "volume": float(_r["amount"]) * 100.0,
+                }])], ignore_index=True)
+                raw["index_source"] = "新浪+腾讯补齐当日"
+            else:
+                raw["index_source"] = "新浪"
+        except Exception:
+            raw["index_source"] = "新浪(腾讯补齐失败)"
         # 新浪指数 volume 单位是"股"(上证约 400亿股/日), 需要换算成元.
         # 用最近一个已知真实成交额做校准: 上证 2026-11-12 全市场约 1.93万亿,
         # 对应 volume 4.965e10 -> 系数约 0.39 元/股. 该系数随市场结构缓慢漂移,
@@ -208,17 +228,20 @@ def fetch_latest(policy_stack: Optional[List[PolicyVector]] = None,
         raw["pct_chg"] = (close / prev_close - 1) * 100
         raw["amount_yi"] = today_amt / 1e8
         raw["amount_note"] = "估算值(量x收盘x校准系数), 仅用于自身历史分位比较, 不代表真实成交额"
-        # 展示口径单独取真实两市成交额(腾讯日线 amount, 单位: 元 = 沪+深).
-        # 估算值只保证分位一致, 绝对值受校准系数漂移影响极大, 不可直接写云端给小程序展示.
+        # 展示口径取交易所官方真实成交额: 沪 stock_sse_deal_daily(亿元) +
+        # 深 stock_szse_summary(元). 腾讯日线 amount 实为"手", 不可直接当成交额.
         try:
+            _d8 = str(raw["index_date"]).replace("-", "")
             _total = 0.0
-            for _sym in ("sh000001", "sz399001"):
-                _t = ak.stock_zh_index_daily_tx(symbol=_sym)
-                _t["date"] = _t["date"].astype(str).str[:10]
-                _total += float(_t.loc[_t["date"] == raw["index_date"], "amount"].iloc[-1])
-            if _total > 1e11:   # 沪深两市合计 < 1000亿 视为异常, 保留估算值
-                raw["amount_yi"] = _total / 1e8
-                raw["amount_note"] = "两市真实成交额(腾讯日线 amount, 沪+深)"
+            _sse = ak.stock_sse_deal_daily(date=_d8)
+            _row = _sse[_sse["单日情况"].astype(str).str.strip() == "成交金额"].iloc[0]
+            _total += float(_row["股票"])                       # 亿元
+            _sz = ak.stock_szse_summary(date=_d8)
+            _szr = _sz[_sz["证券类别"].astype(str).str.strip() == "股票"].iloc[0]
+            _total += float(_szr["成交金额"]) / 1e8             # 元 -> 亿元
+            if _total > 1000:   # 两市合计 < 1000亿 视为异常, 保留估算值
+                raw["amount_yi"] = _total
+                raw["amount_note"] = "两市真实成交额(交易所官方: 沪+深股票)"
         except Exception:
             pass
         raw["ma5"] = ma5

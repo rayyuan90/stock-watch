@@ -354,6 +354,27 @@
     color: #3d4854;
 }
 
+/* ---------- 港股科技板块 · 次日倾向子面板 ---------- */
+.hk-sub {
+    margin-top: 22rpx;
+    padding-top: 20rpx;
+    border-top: 1rpx solid rgba(255, 255, 255, 0.055);
+}
+
+.hk-sub-title {
+    font-size: 24rpx;
+    font-weight: 600;
+    color: #cfd9e6;
+}
+
+.hk-note {
+    display: block;
+    margin-top: 16rpx;
+    font-size: 19rpx;
+    color: #55626f;
+    line-height: 1.5;
+}
+
 /* ---------- 主标的 ---------- */
 .hero {
     position: relative;
