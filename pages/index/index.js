@@ -12,6 +12,7 @@ var bgHist = require('../../utils/bgHist');
 var verify = require('../../utils/verify');
 var vault = require('../../utils/vault');
 var hktech = require('../../utils/hktech');
+var hkbottom = require('../../utils/hkbottom');
 
 /** 把模型读数转成界面字段（条形、配色、文案） */
 function quadClsOf(quad) {
@@ -217,6 +218,9 @@ Page({
         hstechRow: null,
         hkTech: [],
         hkAnalysis: null,
+        hkBottom: hkbottom.build(),
+        hkBottomOpen: false,
+        hkBottomTab: 'A',
         korea: [],
         us: [],
         aShare: [],
@@ -974,6 +978,18 @@ Page({
             });
         }
         this.setData({ sigHistRows: rows, sigStats: sighist.stats(list) });
+    },
+
+    /* ---------- 港股底部研判：展开/折叠 + 信号分类切换 ---------- */
+
+    toggleHkBottom: function () {
+        this.setData({ hkBottomOpen: !this.data.hkBottomOpen });
+    },
+
+    switchHkBottomTab: function (e) {
+        var tab = e.currentTarget.dataset.tab;
+        if (tab === this.data.hkBottomTab) return;
+        this.setData({ hkBottomTab: tab });
     },
 
     goDetail: function (e) {

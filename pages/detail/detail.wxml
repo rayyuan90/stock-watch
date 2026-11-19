@@ -17,7 +17,8 @@
     </view>
 
     <view class="cross num" wx:if="{{cross}}">{{cross}}</view>
-    <view class="cross-tip" wx:elif="{{!hint}}">点击图表可查看某一天的数值</view>
+    <view class="cross-tip" wx:elif="{{!hint}}">点击看数值 · 日K / 周K / 月K 可双指缩放（捏合看更多，张开看更细）</view>
+    <view class="ksrc" wx:if="{{tab !== 'min' && klineSource}}">K线来源：{{klineSource}}{{klineStale ? ' · 行情接口暂不可用，显示最近一次成功获取的数据' : ''}}{{klineThin ? ' · 备用源仅提供当日数据，历史K线暂缺' : ''}}</view>
 
     <view class="hint" wx:if="{{hint}}">
         <text class="hint-t">{{hint}}</text>
@@ -29,6 +30,8 @@
     <view class="tabs">
         <view class="tab {{tab === 'min' ? 'on' : ''}}" data-tab="min" bindtap="switchTab">分时</view>
         <view class="tab {{tab === 'day' ? 'on' : ''}}" data-tab="day" bindtap="switchTab">日K</view>
+        <view class="tab {{tab === 'week' ? 'on' : ''}}" data-tab="week" bindtap="switchTab">周K</view>
+        <view class="tab {{tab === 'month' ? 'on' : ''}}" data-tab="month" bindtap="switchTab">月K</view>
     </view>
 
     <view class="chart-box">

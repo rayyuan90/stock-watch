@@ -813,14 +813,57 @@ function fetchKlineTxUs(sec, limit) {
     });
 }
 
-/** 腾讯日K（A股备用源） */
-function fetchKlineTx(sec, limit) {
-    var code = toTxCode(sec);
-    if (!code) return Promise.reject(new Error('该标的不支持备用源'));
-    var url = TX_KLINE_URL + '?param=' + code + ',day,,,' + (limit || 90) + ',qfq';
+/**
+ * 腾讯K线代码候选（覆盖日K降级所需的主要市场）
+ * 美股需带交易所后缀（.OQ纳斯达克/.N纽交所/.A美交所）才能拿到完整历史，
+ * 故返回候选数组，fetchKlineTx 依次探测取第一个有数据的。
+ * 返回 [{ code, api }] 或 []
+ *   1.x/0.x A股 → sh/sz + fqkline
+ *   116.x 港股 / 124.x 港股指数 → hk + fqkline
+ *   177.x 韩股 → kr + fqkline（腾讯仅提供当日1根）
+ *   100.x 海外指数 → us + fqkline(usfqkline)
+ *   105/106/107 美股 → us代码 + 交易所后缀候选 + usfqkline
+ */
+function toTxKlineCodes(sec) {
+    var p = String(sec || '').split('.');
+    if (p.length !== 2) return [];
+    var m = p[0], c = p[1];
+    if ((m === '1' || m === '0') && /^\d{6}$/.test(c)) {
+        return [{ code: (m === '1' ? 'sh' : 'sz') + c, api: TX_KLINE_URL }];
+    }
+    if (m === '116' && /^\d{5}$/.test(c)) {
+        return [{ code: 'hk' + c, api: TX_KLINE_URL }];
+    }
+    if (m === '124' && /^[A-Z.]{1,12}$/.test(c)) {
+        return [{ code: 'hk' + c, api: TX_KLINE_URL }];
+    }
+    if (m === '177' && /^\d{6}$/.test(c)) {
+        return [{ code: 'kr' + c, api: TX_KLINE_URL }];
+    }
+    if (m === '100' && /^[A-Z.]{1,12}$/.test(c)) {
+        // 海外指数：NDX/SPX 用 us 前缀；KS11 等腾讯无K线
+        return [{ code: 'us' + c, api: TX_US_KLINE_URL }];
+    }
+    if ((m === '105' || m === '106' || m === '107') && /^[A-Z][A-Z.]{0,9}$/.test(c)) {
+        // 美股个股/ETF：先按市场号猜后缀，再依次探测其余后缀
+        var suffixes = m === '105' ? ['.OQ', '.N', '.A', '']
+            : m === '106' ? ['.N', '.A', '.OQ', '']
+                : ['.A', '.N', '.OQ', ''];
+        var list = [];
+        for (var i = 0; i < suffixes.length; i++) {
+            list.push({ code: 'us' + c + suffixes[i], api: TX_US_KLINE_URL });
+        }
+        return list;
+    }
+    return [];
+}
+
+/** 单条腾讯日K请求 → rows（空则抛错） */
+function fetchKlineTxOne(mp, limit) {
+    var url = mp.api + '?param=' + mp.code + ',day,,,' + (limit || 90) + ',qfq';
     return req({ url: url }).then(function (payload) {
-        var d = payload && payload.data && payload.data[code];
-        var arr = d && (d.qfqday || d.day || d[code]);
+        var d = payload && payload.data && payload.data[mp.code];
+        var arr = d && (d.qfqday || d.day || d[mp.code]);
         if (!arr || !arr.length) throw new Error('暂无日K数据');
         var rows = [];
         for (var i = 0; i < arr.length; i++) {
@@ -831,43 +874,149 @@ function fetchKlineTx(sec, limit) {
                 close: Number(p[2]),
                 high: Number(p[3]),
                 low: Number(p[4]),
-                vol: Number(p[5]),
+                vol: Number(p[5]) || 0,
                 amount: 0
             });
         }
-        return { name: '', rows: rows, source: '腾讯' };
+        return { rows: rows, source: '腾讯' };
     });
 }
 
-/** 日K：[{ date, open, close, high, low, vol, amount }] */
-function fetchKline(sec, limit) {
+/** 腾讯日K（全市场降级源）：依次探测候选代码，取数据最完整的一个 */
+function fetchKlineTx(sec, limit) {
+    var cands = toTxKlineCodes(sec);
+    if (!cands.length) return Promise.reject(new Error('该标的不支持腾讯备用源'));
+    var idx = 0;
+    var best = null;
+
+    function next() {
+        if (idx >= cands.length) {
+            if (best) return Promise.resolve(best);
+            return Promise.reject(new Error('暂无日K数据'));
+        }
+        var mp = cands[idx++];
+        return fetchKlineTxOne(mp, limit).then(function (out) {
+            // 港股/韩股/指数只有一个候选；美股候选取数据最多的（后缀正确的那个）
+            if (cands.length === 1 || out.rows.length >= (limit || 90)) return out;
+            if (!best || out.rows.length > best.rows.length) best = out;
+            return next();
+        }).catch(function () {
+            return next();
+        });
+    }
+    return next();
+}
+
+/** 把日K聚合成周K/月K（腾讯降级用）；date 取周期内最后一个交易日 */
+function aggregateKline(rows, period) {
+    var out = [];
+    var curKey = '';
+    var cur = null;
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var d = String(r.date || '');
+        var key;
+        if (period === 'month') {
+            key = d.slice(0, 7);
+        } else {
+            // 以该周周四的日期作为稳定周编号
+            var dt = new Date(d.replace(/-/g, '/'));
+            var wd = dt.getDay() || 7;
+            dt.setDate(dt.getDate() + 4 - wd);
+            var yy = dt.getFullYear();
+            var mm = dt.getMonth() + 1;
+            var dd = dt.getDate();
+            key = yy + '-' + (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
+        }
+        if (key !== curKey) {
+            if (cur) out.push(cur);
+            curKey = key;
+            cur = {
+                date: d, open: r.open, close: r.close, high: r.high, low: r.low,
+                vol: r.vol || 0, amount: r.amount || 0
+            };
+        } else {
+            cur.date = d;
+            cur.close = r.close;
+            if (r.high > cur.high) cur.high = r.high;
+            if (r.low < cur.low) cur.low = r.low;
+            cur.vol += r.vol || 0;
+            cur.amount += r.amount || 0;
+        }
+    }
+    if (cur) out.push(cur);
+    return out;
+}
+
+var KLINE_CACHE_PREFIX = 'barscache_k_';
+
+function saveKlineCache(key, rows) {
+    try {
+        wx.setStorageSync(KLINE_CACHE_PREFIX + key, { ts: Date.now(), rows: rows.slice(-400) });
+    } catch (e) { /* 存储满等，忽略 */ }
+}
+
+function loadKlineCache(key) {
+    try {
+        var hit = wx.getStorageSync(KLINE_CACHE_PREFIX + key);
+        return hit && hit.rows && hit.rows.length ? hit : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/** K线：klt 101=日K / 102=周K / 103=月K，[{ date, open, close, high, low, vol, amount }] */
+function fetchKline(sec, limit, klt) {
+    var period = Number(klt) === 102 || Number(klt) === 103 ? Number(klt) : 101;
+    var label = period === 102 ? '周K' : period === 103 ? '月K' : '日K';
+    var cacheKey = sec + '_' + period;
+    var n = limit || 90;
+
+    function ok(name, rows, source) {
+        var out = { name: name || '', rows: rows, source: source };
+        saveKlineCache(cacheKey, rows);
+        return out;
+    }
+
     var url = KLINE_URL +
         '?secid=' + encodeURIComponent(sec) +
-        '&klt=101&fqt=1&lmt=' + (limit || 90) +
+        '&klt=' + period + '&fqt=1&lmt=' + n +
         '&end=20500101&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57';
     return req({ url: url }).then(function (payload) {
         var d = payload && payload.data;
-        if (!d || !d.klines || !d.klines.length) {
-            throw new Error('暂无日K数据');
-        }
+        if (!d || !d.klines || !d.klines.length) throw new Error('暂无' + label + '数据');
         var rows = [];
         for (var i = 0; i < d.klines.length; i++) {
             var p = d.klines[i].split(',');
             rows.push({
-                date: p[0],
-                open: Number(p[1]),
-                close: Number(p[2]),
-                high: Number(p[3]),
-                low: Number(p[4]),
-                vol: Number(p[5]),
-                amount: Number(p[6])
+                date: p[0], open: Number(p[1]), close: Number(p[2]),
+                high: Number(p[3]), low: Number(p[4]),
+                vol: Number(p[5]), amount: Number(p[6])
             });
         }
-        return { name: d.name || '', rows: rows, source: '东财' };
+        return ok(d.name, rows, '东财');
     }).catch(function (e) {
-        // 东财日K拿不到时，A股标的退到腾讯
-        return fetchKlineTx(sec, limit).catch(function () {
-            throw new Error(friendly(e && e.message));
+        var emErr = friendly(e && e.message);
+        // 降级1：腾讯日K（各市场）；周/月线由足够长的日K本地聚合
+        // 周/月线由日K聚合：拉足够长的日K（腾讯单次上限约1000根，2000会返回异常）
+        var txLimit = period === 102 ? n * 7 : period === 103 ? n * 30 : n;
+        return fetchKlineTx(sec, Math.min(1000, txLimit)).then(function (out) {
+            var rows = period === 101 ? out.rows
+                : aggregateKline(out.rows, period === 102 ? 'week' : 'month');
+            if (!rows.length) throw new Error('暂无' + label + '数据');
+            return ok('', rows, '腾讯');
+        }).catch(function () {
+            // 降级2：本地缓存（两源都暂时不通时显示上次成功的数据）
+            var hit = loadKlineCache(cacheKey);
+            if (hit) {
+                return {
+                    name: '',
+                    rows: hit.rows,
+                    source: '缓存·' + Math.round((Date.now() - hit.ts) / 3600000) + '小时前',
+                    stale: true
+                };
+            }
+            throw new Error(emErr);
         });
     });
 }

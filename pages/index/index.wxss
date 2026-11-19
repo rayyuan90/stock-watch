@@ -375,6 +375,201 @@
     line-height: 1.5;
 }
 
+/* ---------- 港股科技 · 底部研判 ---------- */
+.hkb {
+    background: linear-gradient(152deg, #16202c 0%, #101721 62%, #0e141c 100%);
+    border: 1rpx solid rgba(120, 170, 255, 0.13);
+}
+.hkb .up { color: #ff6b6d; }
+.hkb .down { color: #2fd67c; }
+.hkb .warn { color: #ffbe6b; }
+.hkb .flat { color: #b9c4d6; }
+
+.hkb-head { align-items: flex-start; }
+.hkb-head-l { display: flex; flex-direction: column; }
+.hkb-toggle {
+    font-size: 21rpx;
+    color: #6c9bff;
+    padding: 4rpx 0 0 16rpx;
+    white-space: nowrap;
+}
+
+.hkb-hero {
+    display: flex;
+    align-items: center;
+    padding: 18rpx 0 8rpx;
+}
+.hkb-prob-wrap {
+    width: 250rpx;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+.hkb-prob-label { font-size: 20rpx; color: #55626f; }
+.hkb-prob { font-size: 68rpx; font-weight: 700; line-height: 1.1; }
+.hkb-verdict { font-size: 19rpx; margin-top: 4rpx; }
+
+.hkb-gauge { flex: 1; padding-left: 12rpx; }
+.hkb-track {
+    position: relative;
+    height: 14rpx;
+    border-radius: 8rpx;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+}
+.hkb-fill { height: 100%; border-radius: 8rpx; }
+.hkb-fill.up { background: linear-gradient(90deg, #c0392b, #ff8080); }
+.hkb-fill.warn { background: linear-gradient(90deg, #c98a2e, #ffbe6b); }
+.hkb-fill.down { background: linear-gradient(90deg, #1e8e5e, #52cf9d); }
+.hkb-mark {
+    position: absolute;
+    top: 0;
+    width: 2rpx;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.28);
+}
+.hkb-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8rpx;
+    font-size: 17rpx;
+    color: #4f5b6b;
+}
+.hkb-summary {
+    display: block;
+    font-size: 20rpx;
+    color: #97a4b5;
+    line-height: 1.55;
+    padding: 8rpx 0 4rpx;
+}
+
+.hkb-layers { margin-top: 14rpx; }
+.hkb-layer {
+    padding: 14rpx 16rpx;
+    margin-bottom: 10rpx;
+    border-radius: 10rpx;
+    background: rgba(255, 255, 255, 0.035);
+    border-left: 5rpx solid #6c7a92;
+}
+.hkb-layer-done { border-left-color: #ff6b6d; }
+.hkb-layer-grinding { border-left-color: #ffbe6b; }
+.hkb-layer-absent { border-left-color: #2fd67c; }
+.hkb-layer-top { display: flex; align-items: center; }
+.hkb-layer-name { font-size: 24rpx; font-weight: 600; color: #dfe7f1; }
+.hkb-layer-state { font-size: 20rpx; font-weight: 600; margin-left: 14rpx; }
+.hkb-layer-done .hkb-layer-state { color: #ff6b6d; }
+.hkb-layer-grinding .hkb-layer-state { color: #ffbe6b; }
+.hkb-layer-absent .hkb-layer-state { color: #2fd67c; }
+.hkb-layer-w { margin-left: auto; font-size: 17rpx; color: #4f5b6b; }
+.hkb-layer-bar {
+    height: 8rpx;
+    margin: 10rpx 0 8rpx;
+    border-radius: 6rpx;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+}
+.hkb-layer-fill { height: 100%; border-radius: 6rpx; background: #6c7a92; }
+.hkb-layer-done .hkb-layer-fill { background: linear-gradient(90deg, #c0392b, #ff8080); }
+.hkb-layer-grinding .hkb-layer-fill { background: linear-gradient(90deg, #c98a2e, #ffbe6b); }
+.hkb-layer-absent .hkb-layer-fill { background: linear-gradient(90deg, #1e8e5e, #52cf9d); }
+.hkb-layer-line { font-size: 19rpx; color: #8a97a8; line-height: 1.5; }
+
+.hkb-detail { margin-top: 16rpx; }
+.hkb-block {
+    padding-top: 20rpx;
+    margin-top: 12rpx;
+    border-top: 1rpx solid rgba(255, 255, 255, 0.055);
+}
+.hkb-block-t {
+    font-size: 23rpx;
+    font-weight: 600;
+    color: #cfd9e6;
+    margin-bottom: 14rpx;
+}
+.hkb-anchor { display: flex; flex-wrap: wrap; }
+.hkb-anchor-cell {
+    width: 50%;
+    box-sizing: border-box;
+    padding: 8rpx 0;
+    display: flex;
+    flex-direction: column;
+}
+.hac-k { font-size: 19rpx; color: #4f5b6b; }
+.hac-v { font-size: 26rpx; color: #dfe7f1; font-weight: 600; margin-top: 2rpx; }
+.hac-n { font-size: 17rpx; color: #6c9bff; margin-top: 2rpx; }
+
+.hkb-ev {
+    padding: 14rpx 16rpx;
+    margin-bottom: 12rpx;
+    border-radius: 10rpx;
+    background: rgba(255, 255, 255, 0.035);
+}
+.hkb-ev-head { display: flex; align-items: center; margin-bottom: 8rpx; }
+.hkb-ev-name { font-size: 23rpx; font-weight: 600; }
+.hkb-ev-name.hkb-layer-done { color: #ff6b6d; }
+.hkb-ev-name.hkb-layer-grinding { color: #ffbe6b; }
+.hkb-ev-name.hkb-layer-absent { color: #2fd67c; }
+.hkb-ev-badge {
+    margin-left: auto;
+    font-size: 18rpx;
+    padding: 3rpx 12rpx;
+    border-radius: 6rpx;
+    background: rgba(255, 255, 255, 0.06);
+}
+.hkb-ev-badge.hkb-layer-done { color: #ff6b6d; }
+.hkb-ev-badge.hkb-layer-grinding { color: #ffbe6b; }
+.hkb-ev-badge.hkb-layer-absent { color: #2fd67c; }
+.hkb-ev-line { display: flex; margin-top: 7rpx; }
+.hkb-dot { color: #6c9bff; font-size: 20rpx; width: 20rpx; flex-shrink: 0; }
+.hkb-ev-text { flex: 1; font-size: 19rpx; color: #aeb9c8; line-height: 1.5; }
+.hkb-caveat {
+    margin-top: 12rpx;
+    padding: 10rpx 12rpx;
+    border-radius: 8rpx;
+    background: rgba(255, 190, 107, 0.08);
+    border-left: 4rpx solid #ffbe6b;
+}
+.hkb-caveat text { font-size: 18rpx; color: #d8c49a; line-height: 1.55; }
+
+.hkb-tabs { display: flex; margin-bottom: 12rpx; }
+.hkb-tab {
+    flex: 1;
+    text-align: center;
+    padding: 10rpx 0;
+    font-size: 21rpx;
+    color: #8a97a8;
+    border-radius: 8rpx;
+    background: rgba(255, 255, 255, 0.04);
+    margin-right: 10rpx;
+}
+.hkb-tab:last-child { margin-right: 0; }
+.hkb-tab.on { color: #6c9bff; background: rgba(108, 155, 255, 0.13); font-weight: 600; }
+
+.hkb-sig-title { font-size: 21rpx; color: #cfd9e6; font-weight: 600; margin-bottom: 10rpx; }
+.hkb-sig-sub { font-size: 18rpx; color: #4f5b6b; font-weight: 400; margin-left: 8rpx; }
+.hkb-sig-row { display: flex; padding: 9rpx 0; border-bottom: 1rpx solid rgba(255, 255, 255, 0.05); }
+.hkb-sig-head-row { border-bottom: 1rpx solid rgba(255, 255, 255, 0.12); }
+.hkb-sig-head-row text { color: #6c9bff; font-weight: 600; font-size: 18rpx; }
+.hsr-name { width: 25%; font-size: 18rpx; color: #dfe7f1; line-height: 1.45; padding-right: 8rpx; }
+.hsr-now { width: 33%; font-size: 17rpx; color: #aeb9c8; line-height: 1.45; padding-right: 8rpx; }
+.hsr-thr { flex: 1; font-size: 17rpx; color: #8a97a8; line-height: 1.45; }
+.hkb-sig-note {
+    margin-top: 12rpx;
+    padding: 12rpx;
+    border-radius: 8rpx;
+    background: rgba(255, 107, 109, 0.07);
+    border-left: 4rpx solid #ff6b6d;
+}
+.hkb-sig-note text { font-size: 18rpx; color: #dba7a8; line-height: 1.55; }
+.hkb-foot {
+    margin-top: 18rpx;
+    padding-top: 14rpx;
+    border-top: 1rpx solid rgba(255, 255, 255, 0.055);
+    font-size: 17rpx;
+    color: #4f5b6b;
+    line-height: 1.6;
+}
+
 /* ---------- 主标的 ---------- */
 .hero {
     position: relative;

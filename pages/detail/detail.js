@@ -9,7 +9,8 @@ var AXIS = '#5f6c7d';
 var AVG = '#e6b84c';
 var CROSS = 'rgba(255,255,255,0.55)';
 
-var DAY_COUNT = 60; // 日K显示最近 60 根
+var DAY_COUNT = 60;  // 日K默认显示最近 60 根（双指可缩放，最多到已加载的根数）
+var MIN_BARS = 12;   // 双指放大上限：最少看 12 根
 
 function priceStr(v, digits) {
     if (!fmt.isNum(v)) return '--';
@@ -33,9 +34,12 @@ Page({
         loading: true,
         error: '',
         updatedAt: '--:--:--',
-        // 分项错误：分时 / 日K 各自独立，一个挂了另一个照样能看
+        // 分项错误：分时 / 各周期K线各自独立，一个挂了另一个照样能看
         trendsErr: '',
         klineErr: '',
+        klineSource: '',
+        klineStale: false,
+        klineThin: false,
         hint: '',
         // 顶部报价条
         quote: null,
@@ -56,8 +60,14 @@ Page({
         this._sec = sec;
         this._dpr = 1;
         this._trends = null;
-        this._kline = null;
+        this._klines = { day: null, week: null, month: null };
+        this._klineErrs = { day: '', week: '', month: '' };
+        this._dayCounts = { day: DAY_COUNT, week: DAY_COUNT, month: DAY_COUNT };
+        this._series = { day: null, week: null, month: null };
         this._crossIdx = -1;
+        this._dayCount = DAY_COUNT;
+        this._pinch = null;
+        this._minSeries = null;
         this.setData({
             sec: sec,
             name: name,
@@ -123,16 +133,67 @@ Page({
     },
 
     onChartTap: function (e) {
+        // K线图双指落下：进入缩放模式，不触发十字光标（分时不支持）
+        if (this.data.tab !== 'min' && e.touches && e.touches.length === 2) {
+            this.beginPinch(e);
+            return;
+        }
         this.setCross(e);
     },
 
     onChartMove: function (e) {
+        var cnt = e.touches ? e.touches.length : 0;
+        if (this._pinch) {
+            if (cnt >= 2) this.movePinch(e);
+            return;
+        }
+        // 分时图双指不做缩放，但避免第二根手指误触十字光标
+        if (cnt >= 2) return;
         this.setCross(e);
     },
 
-    onChartEnd: function () {
+    onChartEnd: function (e) {
+        if (this._pinch) {
+            // 两根手指都离开才算缩放结束；剩一根时保持缩放态不跳光标
+            if (e.touches && e.touches.length >= 2) return;
+            this._pinch = null;
+        }
         this._crossIdx = -1;
         this.setData({ cross: null });
+        this.draw();
+    },
+
+    /** 双指缩放起点：记录初始指距与当前可见根数 */
+    beginPinch: function (e) {
+        var t = e.touches;
+        var dx = t[0].x - t[1].x;
+        var dy = t[0].y - t[1].y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var kl = this._klines[this.data.tab];
+        var max = kl && kl.rows.length ? kl.rows.length : DAY_COUNT;
+        this._pinch = {
+            dist: dist,
+            count: this._dayCount,
+            max: Math.max(MIN_BARS, max)
+        };
+        this._crossIdx = -1;
+        this.setData({ cross: null });
+    },
+
+    /** 按比例调节可见K线根数：两指张开=看更多（缩小），捏合=看更少（放大） */
+    movePinch: function (e) {
+        var p = this._pinch;
+        var t = e.touches;
+        if (!p || !p.dist || t.length < 2) return;
+        var dx = t[0].x - t[1].x;
+        var dy = t[0].y - t[1].y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1) return;
+        var n = Math.round(p.count * p.dist / dist); // 指距越大，根数越少
+        n = Math.max(MIN_BARS, Math.min(p.max, n));
+        if (n === this._dayCount) return;
+        this._dayCount = n;
+        this._crossIdx = -1;
         this.draw();
     },
 
@@ -140,7 +201,7 @@ Page({
         var t = e.touches && e.touches[0];
         if (!t) return;
         var x = t.x - 34; // 减去左侧价格轴宽
-        var data = this.data.tab === 'min' ? this._minSeries : this._daySeries;
+        var data = this.data.tab === 'min' ? this._minSeries : this._series[this.data.tab];
         if (!data || !data.length) return;
         var plotW = this._cw - 34 - 8;
         var idx = Math.round(x / plotW * (data.length - 1));
@@ -162,14 +223,37 @@ Page({
     switchTab: function (e) {
         var tab = e.currentTarget.dataset.tab;
         if (tab === this.data.tab) return;
+        var prev = this.data.tab;
+        if (prev !== 'min') this._dayCounts[prev] = this._dayCount; // 记住各周期缩放档位
+        this._dayCount = tab === 'min' ? DAY_COUNT : (this._dayCounts[tab] || DAY_COUNT);
+        this._pinch = null;
         this._crossIdx = -1;
-        this.setData({ tab: tab, cross: null });
+        var curKl = this._klines[tab];
+        this.setData({
+            tab: tab,
+            cross: null,
+            klineErr: tab === 'min' ? '' : (this._klineErrs[tab] || ''),
+            klineSource: curKl && curKl.source ? curKl.source : '',
+            klineStale: !!(curKl && curKl.stale),
+            klineThin: !!(curKl && curKl.rows && curKl.rows.length <= 3 && !curKl.stale)
+        });
+        this.syncHint();
         this.draw();
+        // 周K / 月K 首次切换时按需加载（之后用缓存）
+        if (tab !== 'min' && !this._klines[tab] && !this._klineErrs[tab]) {
+            this.loadKline(false, tab);
+        }
     },
 
     onPullDownRefresh: function () {
         var self = this;
-        this.loadAll().then(function () {
+        // 刷新时丢弃周/月缓存，并重新拉当前查看的周期
+        this._klines.week = null;
+        this._klines.month = null;
+        var cur = this.data.tab;
+        var tasks = [this.loadAll()];
+        if (cur === 'week' || cur === 'month') tasks.push(this.loadKline(false, cur));
+        Promise.all(tasks).then(function () {
             wx.stopPullDownRefresh();
             if (self.data.trendsErr && self.data.klineErr) {
                 wx.showToast({ title: self.data.trendsErr, icon: 'none', duration: 2400 });
@@ -189,7 +273,7 @@ Page({
             self.setData({
                 loading: false,
                 updatedAt: fmt.clock(new Date()),
-                error: !self._trends && !self._kline ? (self.data.trendsErr || '数据加载失败') : ''
+                error: !self._trends && !self._klines.day ? (self.data.trendsErr || '数据加载失败') : ''
             });
             self.syncHint();
             self.draw();
@@ -198,15 +282,17 @@ Page({
 
     /** 汇总两个数据源的错误，给出可执行的提示 */
     syncHint: function () {
+        var isMin = this.data.tab === 'min';
         var tErr = this.data.trendsErr;
-        var kErr = this.data.klineErr;
+        var kErr = isMin ? '' : this.data.klineErr;
+        var periodText = this.data.tab === 'week' ? '周K' : this.data.tab === 'month' ? '月K' : '日K';
         var hint = '';
         if (tErr && kErr) {
             hint = '两个图表都没拿到数据：' + tErr;
         } else if (kErr) {
-            hint = '日K暂不可用（' + kErr + '），分时图正常';
+            hint = periodText + '暂不可用（' + kErr + '），可切换到其他周期';
         } else if (tErr) {
-            hint = '分时暂不可用（' + tErr + '），日K正常';
+            hint = '分时暂不可用（' + tErr + '），K线图正常';
         }
         this.setData({ hint: hint });
     },
@@ -227,18 +313,33 @@ Page({
         });
     },
 
-    loadKline: function (silent) {
+    /** 加载指定周期K线：day=日K / week=周K / month=月K */
+    loadKline: function (silent, period) {
         var self = this;
-        return market.fetchKline(this._sec, 120).then(function (d) {
-            self._kline = d;
-            if (!silent) self.hydrateQuote(d);
-            self.setData({ klineErr: '' });
-            if (self.data.tab === 'day') self.draw();
+        var p = period || 'day';
+        var klt = p === 'week' ? 102 : p === 'month' ? 103 : 101;
+        return market.fetchKline(this._sec, 120, klt).then(function (d) {
+            self._klines[p] = d;
+            self._klineErrs[p] = '';
+            if (!silent && p === 'day') self.hydrateQuote(d);
+            if (self.data.tab === p) {
+                self.setData({
+                    klineErr: '',
+                    klineSource: d && d.source ? d.source : '',
+                    klineStale: !!(d && d.stale),
+                    klineThin: !!(d && d.rows && d.rows.length <= 3 && !(d && d.stale))
+                });
+                self.syncHint();
+                self.draw();
+            }
             return d;
         }).catch(function (e) {
-            self.setData({ klineErr: market.friendly(e && e.message) });
-            self.syncHint();
-            if (self.data.tab === 'day') self.draw();
+            self._klineErrs[p] = market.friendly(e && e.message);
+            if (self.data.tab === p) {
+                self.setData({ klineErr: self._klineErrs[p] });
+                self.syncHint();
+                self.draw();
+            }
             return null;
         });
     },
@@ -292,8 +393,9 @@ Page({
             preClose = this._trends.preClose;
         } else {
             price = row.close;
-            preClose = this._kline.rows.length > 1
-                ? this._kline.rows[this._kline.rows.length - 2].close
+            var daily = this._klines.day;
+            preClose = daily && daily.rows.length > 1
+                ? daily.rows[daily.rows.length - 2].close
                 : row.open;
         }
         var pct = fmt.isNum(preClose) && preClose > 0 ? (price - preClose) / preClose * 100 : null;
@@ -327,7 +429,8 @@ Page({
             if (err) {
                 ctx.fillStyle = '#ff8a8c';
                 ctx.font = '12px sans-serif';
-                ctx.fillText(this.data.tab === 'min' ? '分时加载失败' : '日K加载失败', w / 2, h / 2 - 10);
+                var kLabel = this.data.tab === 'week' ? '周K' : this.data.tab === 'month' ? '月K' : '日K';
+                ctx.fillText(this.data.tab === 'min' ? '分时加载失败' : kLabel + '加载失败', w / 2, h / 2 - 10);
                 ctx.fillStyle = AXIS;
                 ctx.font = '10px sans-serif';
                 ctx.fillText(err, w / 2, h / 2 + 10);
@@ -491,19 +594,21 @@ Page({
         ctx.stroke();
 
         this.drawVolume(L, rows, 'price');
-        this.drawCross(L, xOf, rows.map(function (r, i) {
+        this._minSeries = rows.map(function (r, i) {
             var c = {}; for (var k in r) c[k] = r[k];
             c.y = yOf(r.price); return c;
-        }));
+        });
+        this.drawCross(L, xOf, this._minSeries);
         return true;
     },
 
-    /** 日K蜡烛图 + MA5/MA10 */
+    /** 蜡烛图 + MA5/MA10（日K / 周K / 月K 共用） */
     drawDay: function () {
-        var k = this._kline;
+        var period = this.data.tab;
+        var k = this._klines[period];
         if (!k || !k.rows.length) return false;
         var all = k.rows;
-        var rows = all.slice(-DAY_COUNT);
+        var rows = all.slice(-Math.min(this._dayCount || DAY_COUNT, all.length));
         var digits = this._digits = guessDigits(rows[0].close);
         var L = this.layout(rows);
 
@@ -594,10 +699,18 @@ Page({
         ctx.fillText('MA10', L.left + 32, L.priceTop + 10);
 
         this.drawVolume(L, rows);
-        this.drawCross(L, xOf, rows.map(function (r) {
+        this._series[period] = rows.map(function (r) {
             var c = {}; for (var key in r) c[key] = r[key];
             c.y = yOf(r.close); return c;
-        }));
+        });
+        this.drawCross(L, xOf, this._series[period]);
+
+        // 右上角提示当前周期与缩放档位，用户能确认手势已生效
+        var kLabel = period === 'week' ? '周K' : period === 'month' ? '月K' : '日K';
+        ctx.fillStyle = AXIS;
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(kLabel + ' · ' + rows.length + '根 · 双指缩放', L.right, L.priceTop + 22);
         return true;
     }
 });

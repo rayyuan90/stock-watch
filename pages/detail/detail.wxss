@@ -67,6 +67,12 @@
     color: #4b5665;
 }
 
+.ksrc {
+    margin: -6rpx 0 12rpx;
+    font-size: 19rpx;
+    color: #6f7d8f;
+}
+
 .err {
     padding: 20rpx;
     border-radius: 14rpx;

@@ -99,6 +99,104 @@
         </view>
     </view>
 
+    <!-- 港股科技 · 底部研判（三层底 / 底部概率 / 信号清单） -->
+    <view class="card hkb" wx:if="{{hkBottom}}">
+        <view class="sec-head hkb-head" bindtap="toggleHkBottom">
+            <view class="hkb-head-l">
+                <text class="sec-label">港股科技 · 底部研判</text>
+                <text class="sec-note">估值底 / 资金底 / 叙事底 · 截至 {{hkBottom.asOf}}</text>
+            </view>
+            <text class="hkb-toggle">{{hkBottomOpen ? '收起 ▲' : '展开 ▼'}}</text>
+        </view>
+
+        <!-- 概览：综合概率 + 三层底状态（常显） -->
+        <view class="hkb-hero">
+            <view class="hkb-prob-wrap">
+                <text class="hkb-prob-label">底部综合概率</text>
+                <text class="hkb-prob num {{hkBottom.cls}}">{{hkBottom.probText}}</text>
+                <text class="hkb-verdict {{hkBottom.cls}}">{{hkBottom.label}} · {{hkBottom.layerCount}}</text>
+            </view>
+            <view class="hkb-gauge">
+                <view class="hkb-track">
+                    <view class="hkb-fill {{hkBottom.cls}}" style="width:{{hkBottom.barPct}}%"></view>
+                    <view class="hkb-mark" style="left:33%"></view>
+                    <view class="hkb-mark" style="left:66%"></view>
+                </view>
+                <view class="hkb-axis"><text>底部未到</text><text>左侧磨底</text><text>确认大底</text></view>
+            </view>
+        </view>
+        <text class="hkb-summary">{{hkBottom.verdict}}</text>
+
+        <view class="hkb-layers">
+            <view class="hkb-layer hkb-layer-{{item.statusCls}}" wx:for="{{hkBottom.layers}}" wx:key="key">
+                <view class="hkb-layer-top">
+                    <text class="hkb-layer-name">{{item.name}}</text>
+                    <text class="hkb-layer-state">{{item.status}}</text>
+                    <text class="hkb-layer-w">权重 {{item.weight}}%</text>
+                </view>
+                <view class="hkb-layer-bar"><view class="hkb-layer-fill" style="width:{{item.progress}}%"></view></view>
+                <text class="hkb-layer-line">{{item.oneLine}}</text>
+            </view>
+        </view>
+
+        <!-- 展开明细：坐标 / 逐层证据 / A-B-C 信号清单 -->
+        <view class="hkb-detail" wx:if="{{hkBottomOpen}}">
+            <view class="hkb-block">
+                <view class="hkb-block-t">一、当下坐标（钉死位置）</view>
+                <view class="hkb-anchor">
+                    <view class="hkb-anchor-cell" wx:for="{{hkBottom.anchorRows}}" wx:key="k">
+                        <text class="hac-k">{{item.k}}</text>
+                        <text class="hac-v num">{{item.v}}</text>
+                        <text class="hac-n" wx:if="{{item.note}}">{{item.note}}</text>
+                    </view>
+                </view>
+            </view>
+
+            <view class="hkb-block">
+                <view class="hkb-block-t">二、三层底 · 逐层证据</view>
+                <view class="hkb-ev" wx:for="{{hkBottom.layers}}" wx:key="key">
+                    <view class="hkb-ev-head">
+                        <text class="hkb-ev-name hkb-layer-{{item.statusCls}}">{{item.name}}</text>
+                        <text class="hkb-ev-badge hkb-layer-{{item.statusCls}}">{{item.status}} · 到达 {{item.progress}}%</text>
+                    </view>
+                    <view class="hkb-ev-line" wx:for="{{item.points}}" wx:for-item="pt" wx:key="*this">
+                        <text class="hkb-dot">·</text><text class="hkb-ev-text">{{pt}}</text>
+                    </view>
+                    <view class="hkb-caveat"><text>{{item.caveat}}</text></view>
+                </view>
+            </view>
+
+            <view class="hkb-block">
+                <view class="hkb-block-t">三、底部信号清单（逐日 / 逐季可验证）</view>
+                <view class="hkb-tabs">
+                    <text class="hkb-tab {{hkBottomTab === item.key ? 'on' : ''}}"
+                          wx:for="{{hkBottom.signals}}" wx:key="key"
+                          data-tab="{{item.key}}" bindtap="switchHkBottomTab">{{item.key}} 类</text>
+                </view>
+                <block wx:for="{{hkBottom.signals}}" wx:key="key">
+                    <view class="hkb-sig" wx:if="{{hkBottomTab === item.key}}">
+                        <view class="hkb-sig-title">{{item.title}} <text class="hkb-sig-sub">{{item.sub}}</text></view>
+                        <view class="hkb-sig-row hkb-sig-head-row">
+                            <text class="hsr-name">信号</text>
+                            <text class="hsr-now">当前状态</text>
+                            <text class="hsr-thr">见底阈值</text>
+                        </view>
+                        <view class="hkb-sig-row" wx:for="{{item.items}}" wx:for-item="sig" wx:key="name">
+                            <text class="hsr-name">{{sig.name}}</text>
+                            <text class="hsr-now">{{sig.now}}</text>
+                            <text class="hsr-thr">{{sig.threshold}}</text>
+                        </view>
+                        <view class="hkb-sig-note" wx:if="{{item.note}}"><text>{{item.note}}</text></view>
+                    </view>
+                </block>
+            </view>
+
+            <view class="hkb-foot">
+                概率为三层底加权到达度的启发式估计，非涨跌预测 · 低估值只是必要条件，盈利是否止跌才是核心变量 · 不构成投资建议
+            </view>
+        </view>
+    </view>
+
     <view class="card signal" wx:if="{{signalData}}">
         <view class="signal-head">
             <text class="sec-label">次日倾向</text>
