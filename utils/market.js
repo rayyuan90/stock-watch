@@ -254,6 +254,7 @@ function txQuoteCode(sec) {
         return (mk === '1' ? 'sh' : 'sz') + code;
     }
     if (mk === '116') return 'hk' + code;   // 港股：116.00700 → hk00700
+    if (mk === '124') return 'hk' + code;   // 港股指数：124.HSTECH → hkHSTECH（恒生科技指数）
     if (mk === '177') return 'kr' + code;   // 韩股：177.005930 → kr005930
     if (isUsSec(sec)) return 'us' + code;   // 美股：105.NVDA → usNVDA
     return '';
@@ -327,6 +328,29 @@ function fetchQuotesTx(secids) {
         for (var k = 0; k < texts.length; k++) mergeTxQuotes(texts[k], byCode, out);
         if (!Object.keys(out).length) throw new Error('腾讯报价为空');
         return out;
+    });
+}
+
+// 恒生科技指数（124.HSTECH）在东财批量接口常漏返，导致首页该行显示 --。
+// 单独走腾讯报价兜底（hkHSTECH），30 秒缓存避免 3 秒刷新反复请求。
+var hkIdxCache = { at: 0, q: null };
+var HK_IDX_TTL = 30 * 1000;
+function hkIndexValid(q) {
+    return !!(q && typeof q.price === 'number' && isFinite(q.price) && q.price > 0);
+}
+function fetchHkIndexTx() {
+    if (hkIndexValid(hkIdxCache.q) && Date.now() - hkIdxCache.at < HK_IDX_TTL) {
+        return Promise.resolve(hkIdxCache.q);
+    }
+    return fetchQuotesTx(['124.HSTECH']).then(function (map) {
+        var q = map['124.HSTECH'];
+        if (hkIndexValid(q)) {
+            hkIdxCache = { at: Date.now(), q: q };
+            return q;
+        }
+        return hkIdxCache.q; // 拉失败但旧缓存有效则沿用
+    }).catch(function () {
+        return hkIdxCache.q;
     });
 }
 
@@ -583,11 +607,13 @@ function fetchAll() {
         }),
         fetchUsExt().catch(function () {
             return {};
-        })
+        }),
+        fetchHkIndexTx() // 恒科指数独立兜底（东财批量常漏返）
     ]).then(function (res) {
         var em = res[0] || {};
         var tx = res[1] || {};
         var usExt = res[2] || {};
+        var hkIdx = res[3] || null;
         var quotes = {};
         var key;
         for (key in em) {
@@ -595,6 +621,10 @@ function fetchAll() {
         }
         for (key in tx) {
             if (key !== '__error') quotes[key] = tx[key];
+        }
+        // 东财/腾讯都没给恒科指数时，用独立兜底补上（不覆盖已有有效报价）
+        if (!hkIndexValid(quotes['124.HSTECH']) && hkIndexValid(hkIdx)) {
+            quotes['124.HSTECH'] = hkIdx;
         }
 
         var parts = [];

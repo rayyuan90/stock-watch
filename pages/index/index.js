@@ -77,8 +77,11 @@ function decorateUsGame(u) {
 }
 
 var CONFIG_KEY = 'kanpan:config';
+var COLLAPSE_KEY = 'kanpan:collapse';
 var HISTORY_KEY = 'kanpan:posHistory';
 var REFRESH_MS = 3000;
+// 打赏收款码：本地图片路径。要换成自己的微信收款码，只需替换 images/reward-qr.png 这个文件。
+var REWARD_QR_SRC = '/images/reward-qr.png';
 
 var DEFAULT_CONFIG = {
     cost513310: '',
@@ -213,7 +216,6 @@ Page({
         updatedAt: '--:--:--',
         statusText: '连接中',
         live: false,
-        hero: null,
         holdings: [],
         hstechRow: null,
         hkTech: [],
@@ -221,6 +223,13 @@ Page({
         hkBottom: hkbottom.build(),
         hkBottomOpen: false,
         hkBottomTab: 'A',
+        // 首页各模块折叠状态（统一折叠/展开，默认全部展开）
+        collapsed: {
+            hkTech: false, hkb: false, signal: false,
+            holdings: false, watch: false, aflow: false, futures: false,
+            agame: false, verify: false, usgame: false, bgacc: false, cross: false,
+            reward: false
+        },
         korea: [],
         us: [],
         aShare: [],
@@ -252,10 +261,28 @@ Page({
         verifyPanel: null,
         cloudUser: '',
         cloudLabel: '未登录云账号',
-        config: DEFAULT_CONFIG
+        config: DEFAULT_CONFIG,
+        // 打赏支持（微信个人收款码）
+        rewardPresets: [2, 4, 6, 8],
+        rewardAmount: 2,
+        rewardCustom: '',
+        rewardValueText: '2',
+        rewardShow: false,
+        rewardQrSrc: REWARD_QR_SRC
     },
 
     onLoad: function () {
+        // 恢复各模块折叠偏好
+        try {
+            var savedCollapse = wx.getStorageSync(COLLAPSE_KEY);
+            if (savedCollapse && typeof savedCollapse === 'object') {
+                var c = {};
+                for (var ck in this.data.collapsed) {
+                    if (ck in savedCollapse) c['collapsed.' + ck] = !!savedCollapse[ck];
+                }
+                if (Object.keys(c).length) this.setData(c);
+            }
+        } catch (e) { /* ignore */ }
         var saved = wx.getStorageSync(CONFIG_KEY);
         var cfg = {};
         var key;
@@ -700,40 +727,8 @@ Page({
             longShort.totalText = longShort.totalOi ? fmt.group(longShort.totalOi) + ' 手' : '未填';
         }
 
-        var hero = null;
-        if (etf) {
-            var heroPos = signalModel.buildPosition(etf, cfg.cost513310, cfg.shares513310);
-            hero = {
-                name: '中韩半导体ETF',
-                fullName: '华泰柏瑞 · 中证中韩半导体',
-                code: '513310',
-                sec: '1.513310',
-                priceText: priceText(etf),
-                pctText: fmt.isNum(etf.pct) ? fmt.pct(etf.pct) : '--',
-                changeText: fmt.isNum(etf.change)
-                    ? (Number(etf.change) > 0 ? '+' : '') + fmt.fixed(etf.change, etf.digits)
-                    : '--',
-                cls: fmt.cls(etf.pct),
-                highText: fmt.fixed(etf.high, etf.digits),
-                lowText: fmt.fixed(etf.low, etf.digits),
-                amountText: fmt.amount(etf.amount),
-                premiumText: fmt.isNum(etf.premium) ? fmt.pct(etf.premium) : '--',
-                premiumCls: fmt.cls(etf.premium),
-                pos: heroPos
-                    ? {
-                        shares: fmt.group(heroPos.shares),
-                        cost: fmt.fixed(heroPos.cost, 3),
-                        valueText: fmt.amount(heroPos.marketValue),
-                        profitText: (heroPos.profit > 0 ? '+' : '') + fmt.fixed(heroPos.profit, 0),
-                        profitPctText: fmt.pct(heroPos.profitPct),
-                        todayText: (heroPos.todayProfit > 0 ? '+' : '') + fmt.fixed(heroPos.todayProfit, 0),
-                        cls: heroPos.cls
-                    }
-                    : null
-            };
-        }
-
         var chipPos = signalModel.buildPosition(chip, cfg.cost159995, cfg.shares159995);
+        var etfPos = signalModel.buildPosition(etf, cfg.cost513310, cfg.shares513310);
 
         var holdings = [{
             name: '长鑫科技',
@@ -762,15 +757,23 @@ Page({
                 }
                 : null
         }, {
-            name: '半导体ETF国联安',
-            code: '512480',
-            sec: '1.512480',
-            subText: '512480 · 半导体广度',
-            priceText: priceText(sem),
-            pctText: sem && fmt.isNum(sem.pct) ? fmt.pct(sem.pct) : '--',
-            cls: fmt.cls(sem && sem.pct),
-            meta: sem && fmt.isNum(sem.amount) ? '成交 ' + fmt.amount(sem.amount) : '',
-            pos: null
+            name: '中韩半导体ETF',
+            code: '513310',
+            sec: '1.513310',
+            subText: '513310 · 中韩半导体',
+            priceText: priceText(etf),
+            pctText: etf && fmt.isNum(etf.pct) ? fmt.pct(etf.pct) : '--',
+            cls: fmt.cls(etf && etf.pct),
+            meta: etf && fmt.isNum(etf.amount) ? '成交 ' + fmt.amount(etf.amount) : '',
+            premiumText: etf && fmt.isNum(etf.premium) ? fmt.pct(etf.premium) : '--',
+            premiumCls: fmt.cls(etf && etf.premium),
+            pos: etfPos
+                ? {
+                    profitText: (etfPos.profit > 0 ? '+' : '') + fmt.fixed(etfPos.profit, 0),
+                    profitPctText: fmt.pct(etfPos.profitPct),
+                    cls: etfPos.cls
+                }
+                : null
         }];
 
         // 自选：手动添加的股票 / ETF / 期货
@@ -867,7 +870,6 @@ Page({
             updatedAt: fmt.clock(time),
             statusText: state.text,
             live: state.live,
-            hero: hero,
             holdings: holdings,
             hstechRow: quoteRow(hste, '恒生科技指数', 'HSTECH'),
             hkTech: hkTech,
@@ -1038,6 +1040,21 @@ Page({
     },
 
     /* ---------- 港股底部研判：展开/折叠 + 信号分类切换 ---------- */
+
+    /** 首页通用模块折叠/展开：data-key 对应 data.collapsed 的键 */
+    toggleModule: function (e) {
+        var key = e.currentTarget.dataset.key;
+        if (!key || !(key in this.data.collapsed)) return;
+        var patch = {};
+        var next = !this.data.collapsed[key];
+        patch['collapsed.' + key] = next;
+        this.setData(patch);
+        try {
+            var saved = wx.getStorageSync(COLLAPSE_KEY) || {};
+            saved[key] = next;
+            wx.setStorageSync(COLLAPSE_KEY, saved);
+        } catch (e) { /* ignore */ }
+    },
 
     toggleHkBottom: function () {
         this.setData({ hkBottomOpen: !this.data.hkBottomOpen });
@@ -1703,6 +1720,89 @@ Page({
                     self.setData({ config: cfg });
                     self.loadPrevPos();
                     self.refresh();
+                }
+            }
+        });
+    },
+
+    /* ---------- 打赏支持（微信个人收款码） ---------- */
+    /** 选择快捷金额：清空自定义输入 */
+    pickReward: function (e) {
+        var amt = e.currentTarget.dataset.amount;
+        if (!amt) return;
+        this.setData({
+            rewardAmount: amt,
+            rewardCustom: '',
+            rewardValueText: String(amt)
+        });
+    },
+
+    /** 自定义金额输入：实时校验并更新展示金额 */
+    onRewardInput: function (e) {
+        var raw = (e.detail.value || '').trim();
+        // 只保留数字和一个小数点
+        var val = raw.replace(/[^\d.]/g, '');
+        var parts = val.split('.');
+        if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+        // 限制两位小数
+        if (val.indexOf('.') >= 0) {
+            var seg = val.split('.');
+            val = seg[0] + '.' + seg[1].slice(0, 2);
+        }
+        // 限制最大金额 9999
+        var num = parseFloat(val);
+        if (!isNaN(num) && num > 9999) val = '9999';
+        this.setData({
+            rewardCustom: val,
+            rewardValueText: val !== '' && !isNaN(parseFloat(val)) ? val : ''
+        });
+    },
+
+    /** 当前打赏金额是否有效 */
+    _rewardValid: function () {
+        var v = parseFloat(this.data.rewardValueText);
+        return !isNaN(v) && v > 0;
+    },
+
+    /** 打开收款码弹窗 */
+    openReward: function () {
+        if (!this._rewardValid()) {
+            wx.showToast({ title: '请先输入有效金额', icon: 'none' });
+            return;
+        }
+        this.setData({ rewardShow: true });
+    },
+
+    /** 关闭弹窗 */
+    closeReward: function () {
+        this.setData({ rewardShow: false });
+    },
+
+    /** 空操作：阻止弹窗内容区点击冒泡到遮罩 */
+    noop: function () {},
+
+    /** 保存收款码到相册（需用户授权） */
+    saveRewardQr: function () {
+        var self = this;
+        wx.saveImageToPhotosAlbum({
+            filePath: self.data.rewardQrSrc,
+            success: function () {
+                wx.showToast({ title: '已保存到相册', icon: 'success' });
+            },
+            fail: function (err) {
+                var msg = (err && err.errMsg) || '';
+                if (msg.indexOf('auth deny') >= 0 || msg.indexOf('authorize') >= 0) {
+                    wx.showModal({
+                        title: '需要授权',
+                        content: '保存图片需要相册权限，请在设置中开启',
+                        confirmText: '去设置',
+                        success: function (r) {
+                            if (r.confirm) wx.openSetting();
+                        }
+                    });
+                } else {
+                    // 开发者工具/部分机型不支持保存到相册时，引导长按识别
+                    wx.showToast({ title: '请长按二维码识别', icon: 'none' });
                 }
             }
         });
