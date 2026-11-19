@@ -104,7 +104,8 @@
         <view class="sec-head hkb-head" bindtap="toggleHkBottom">
             <view class="hkb-head-l">
                 <text class="sec-label">港股科技 · 底部研判</text>
-                <text class="sec-note">估值底 / 资金底 / 叙事底 · 截至 {{hkBottom.asOf}}</text>
+                <text class="sec-note" wx:if="{{hkBottom.dataTag}}">{{hkBottom.dataTag}} · {{hkBottom.snapTag}} · 基准 {{hkBottom.asOf}}</text>
+                <text class="sec-note" wx:else>{{hkBottom.period}} · 估值底/资金底/叙事底 · 基准 {{hkBottom.asOf}}</text>
             </view>
             <text class="hkb-toggle">{{hkBottomOpen ? '收起 ▲' : '展开 ▼'}}</text>
         </view>
@@ -192,7 +193,7 @@
             </view>
 
             <view class="hkb-foot">
-                概率为三层底加权到达度的启发式估计，非涨跌预测 · 低估值只是必要条件，盈利是否止跌才是核心变量 · 不构成投资建议
+                概率 = 三层底加权到达度，数据驱动自动重算 · 实时项：恒科行情 / 南向连续净流入与月度累计 / 腾讯财报现金流 · 快照项：估值分位 / 外资持仓 / 资本开支细项 / ETF 折价 / 美债，锁定在各自报告期（基准 {{hkBottom.asOf}}），需手动更新数值 · 非投资建议
             </view>
         </view>
     </view>

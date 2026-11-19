@@ -3,37 +3,36 @@
   数据质量报告 (缺失字段已降级为中性 50, 会影响得分可信度)
 ──────────────────────────────────────────────────────────────
   ✅ 指数/成交额                 ok
-  ⚠️ 两融(沪)                  ⚠️数据陈旧(最新20230922, 滞后1152天), 已置中性
+  ⚠️ 两融(沪)                  ⚠️数据陈旧(最新20230922, 滞后1154天), 已置中性
   ✅ 情绪(新浪推算)               ok
-  ✅ 主力大单                   ok(东财)
+  ⚠️ 主力大单                   代理值(成交额加权涨幅, 非真实大单)
   ✅ 北向                     ok
   ⚠️ 宽基ETF                  份额接口不可用, 置中性
-  ✅ 解禁(未来5日)               ok(40条, 290亿)
-  ✅ 减持(近20日)               ok(420条, 净-1.52亿)
-  ✅ 获利盘(乖离代理)              ok(20日乖离-1.92%)
+  ✅ 解禁(未来5日)               ok(37条, 205亿)
+  ✅ 减持(近20日)               ok(456条, 净-5.78亿)
+  ✅ 获利盘(乖离代理)              ok(20日乖离-1.66%)
   ⚠️ 公募仓位                   季频无日频源, 置中性(仅影响 P, 不影响 G)
   ⚠️ north_net              NaN 已置 0
 ──────────────────────────────────────────────────────────────
-  原始值: {'index_source': '新浪+腾讯补齐当日', 'index_close': 3584.58, 'index_date': '2026-11-17', 'pct_chg': -0.5, 'amount_yi': 14592.57, 'amount_note': '两市真实成交额(交易所官方: 沪+深股票)', 'ma5': 3631.6, 'ma20': 3654.66, 'margin_yi': 8016.02, 'd_margin_yi': -5.19, 'margin_date': '20230922', 'margin_stale_days': 1152, 'limit_up': 37, 'broken': 34, 'broken_rate': np.float64(47.89), 'max_board': 5.0, 'up_ratio': 23.26, 'big_proxy': -1.39, 'adv_ratio': 0.23, 'big_order_net': -266.07, 'unlock_5d_yi': 290.04, 'unlock_5d_rank': 48.34, 'unlock_5d_span': '2026-11-17~2026-11-23', 'unlock_5d_n': 40, 'reduce_20d_yi': -1.52, 'reduce_amt_rank': 53.8, 'reduce_20d_span': '2026-10-28~2026-11-17', 'reduce_20d_n': 420, 'profit_float_rank': 42.33, 'dev_ma20_pct': -1.92, 'margin_force_rank': 50.0}
+  原始值: {'index_source': '新浪', 'index_close': 3587.83, 'index_date': '2026-11-18', 'pct_chg': 0.09, 'amount_yi': 13713.61, 'amount_note': '两市真实成交额(交易所官方: 沪+深股票)', 'ma5': 3613.03, 'ma20': 3648.4, 'margin_yi': 8016.02, 'd_margin_yi': -5.19, 'margin_date': '20230922', 'margin_stale_days': 1154, 'limit_up': 28, 'broken': 25, 'broken_rate': np.float64(47.17), 'max_board': 4.25, 'up_ratio': 16.6, 'big_proxy': -1.0, 'adv_ratio': 0.17, 'big_order_net': -1.0, 'big_order_proxy_used': 1.0, 'unlock_5d_yi': 205.5, 'unlock_5d_rank': 34.25, 'unlock_5d_span': '2026-11-19~2026-11-25', 'unlock_5d_n': 37, 'reduce_20d_yi': -5.78, 'reduce_amt_rank': 64.45, 'reduce_20d_span': '2026-10-30~2026-11-19', 'reduce_20d_n': 456, 'profit_float_rank': 43.36, 'dev_ma20_pct': -1.66, 'margin_force_rank': 50.0}
 
   [预热完成] 已回放 20 个交易日
 
 ==============================================================
-  仓位空间 P =  67.0  (偏高)   
-  流入强度 R =   0.0 -> 校准后   0.0  (原始 -1.721%/日)
-  大资金 BIG =  49.0  (中性)   大资金中性
-  加速度   A = -6.22   连续负值 3 期
-  情绪温度 E =  44.4   情绪加速度 E' = +0.75
-  卖压再生 G =  49.1
-  综合动量 M =  15.7
+  仓位空间 P =  70.6  (偏高)   
+  流入强度 R =   0.0 -> 校准后   0.0  (原始 -2.655%/日)
+  大资金 BIG =  50.0  (中性)   大资金中性
+  加速度   A = -1.56   连续负值 5 期
+  情绪温度 E =  38.2   情绪加速度 E' = -2.19
+  卖压再生 G =  48.3
+  综合动量 M =  23.0
   ▶ 象限：Q3 缩量耗尽
   ▶ 背离：双杀 (Q3 空仓)
   ▶ 政策：无政策叠加
   ▶ 操作：空仓 / 等政策或地量信号
   -- 告警 --
-    🔴 主力大单净流出 266亿: 机构在卖, 反弹不可信
-    🟠 炸板率 48% > 30%: 情绪转弱
-    🟠 加速度转负 A=-6.22 (连续 3 期)
+    🟠 炸板率 47% > 30%: 情绪转弱
+    🟠 加速度转负 A=-1.56 (连续 5 期)
     🔴 A 连续3期为负: 顶部区高度确认, 立即减仓
     🟠 跌破20日线 + 加速度负: 趋势转弱确认
     🟠 破5日线 + 炸板率高: 短线惯性下, 次日易低开
@@ -44,8 +43,8 @@
     - 偏多触发: 需 大资金回流 + 涨停家数回升 同时出现, 当前条件不足
     - 偏空触发: 放量破位且反抽无量 -> 降级 Q3
 
-  🚫 数据质量闸门: M=15.7 不可用于方向判断, 只能看象限+告警
+  🚫 数据质量闸门: M=23.0 不可用于方向判断, 只能看象限+告警
 
 -----BEGIN-SQL-----
-INSERT INTO a_input_ext (ymd, d_margin, margin_pct_rank, big_order_net, big_order_net_rank, north_net_rank, etf_sub_rank, etf_net_subscribe, limit_up_cnt, max_board, broken_rate, up_ratio_rank, amt_yi, unlock_5d_yi, unlock_5d_rank, reduce_20d_yi, reduce_amt_rank, margin_force_rank, profit_float_rank, quality, policy_json, updated_at) VALUES ('2026-11-17', NULL, NULL, -266.0722, 47.5, 50.0, NULL, NULL, 37.0, 5.0, 47.8873, 23.2625, 14592.5692, 290.0392, 48.3399, -1.5201, 53.8002, 50.0, 42.3301, '{"指数/成交额": "ok", "两融(沪)": "⚠️数据陈旧(最新20230922, 滞后1152天), 已置中性", "情绪(新浪推算)": "ok", "主力大单": "ok(东财)", "北向": "ok", "宽基ETF": "份额接口不可用, 置中性", "解禁(未来5日)": "ok(40条, 290亿)", "减持(近20日)": "ok(420条, 净-1.52亿)", "获利盘(乖离代理)": "ok(20日乖离-1.92%)", "公募仓位": "季频无日频源, 置中性(仅影响 P, 不影响 G)", "north_net": "NaN 已置 0"}', '[]', now()) ON CONFLICT (ymd) DO UPDATE SET d_margin=EXCLUDED.d_margin, margin_pct_rank=EXCLUDED.margin_pct_rank, big_order_net=EXCLUDED.big_order_net, big_order_net_rank=EXCLUDED.big_order_net_rank, north_net_rank=EXCLUDED.north_net_rank, etf_sub_rank=EXCLUDED.etf_sub_rank, etf_net_subscribe=EXCLUDED.etf_net_subscribe, limit_up_cnt=EXCLUDED.limit_up_cnt, max_board=EXCLUDED.max_board, broken_rate=EXCLUDED.broken_rate, up_ratio_rank=EXCLUDED.up_ratio_rank, amt_yi=EXCLUDED.amt_yi, unlock_5d_yi=EXCLUDED.unlock_5d_yi, unlock_5d_rank=EXCLUDED.unlock_5d_rank, reduce_20d_yi=EXCLUDED.reduce_20d_yi, reduce_amt_rank=EXCLUDED.reduce_amt_rank, margin_force_rank=EXCLUDED.margin_force_rank, profit_float_rank=EXCLUDED.profit_float_rank, quality=EXCLUDED.quality, policy_json=EXCLUDED.policy_json, updated_at=now();
+INSERT INTO a_input_ext (ymd, d_margin, margin_pct_rank, big_order_net, big_order_net_rank, north_net_rank, etf_sub_rank, etf_net_subscribe, limit_up_cnt, max_board, broken_rate, up_ratio_rank, amt_yi, unlock_5d_yi, unlock_5d_rank, reduce_20d_yi, reduce_amt_rank, margin_force_rank, profit_float_rank, quality, policy_json, updated_at) VALUES ('2026-11-18', NULL, NULL, -0.9987, 49.9501, 50.0, NULL, NULL, 28.0, 4.25, 47.1698, 16.5997, 13713.6078, 205.4957, 34.2493, -5.7787, 64.4468, 50.0, 43.3597, '{"指数/成交额": "ok", "两融(沪)": "⚠️数据陈旧(最新20230922, 滞后1154天), 已置中性", "情绪(新浪推算)": "ok", "主力大单": "代理值(成交额加权涨幅, 非真实大单)", "北向": "ok", "宽基ETF": "份额接口不可用, 置中性", "解禁(未来5日)": "ok(37条, 205亿)", "减持(近20日)": "ok(456条, 净-5.78亿)", "获利盘(乖离代理)": "ok(20日乖离-1.66%)", "公募仓位": "季频无日频源, 置中性(仅影响 P, 不影响 G)", "north_net": "NaN 已置 0"}', '[]', now()) ON CONFLICT (ymd) DO UPDATE SET d_margin=EXCLUDED.d_margin, margin_pct_rank=EXCLUDED.margin_pct_rank, big_order_net=EXCLUDED.big_order_net, big_order_net_rank=EXCLUDED.big_order_net_rank, north_net_rank=EXCLUDED.north_net_rank, etf_sub_rank=EXCLUDED.etf_sub_rank, etf_net_subscribe=EXCLUDED.etf_net_subscribe, limit_up_cnt=EXCLUDED.limit_up_cnt, max_board=EXCLUDED.max_board, broken_rate=EXCLUDED.broken_rate, up_ratio_rank=EXCLUDED.up_ratio_rank, amt_yi=EXCLUDED.amt_yi, unlock_5d_yi=EXCLUDED.unlock_5d_yi, unlock_5d_rank=EXCLUDED.unlock_5d_rank, reduce_20d_yi=EXCLUDED.reduce_20d_yi, reduce_amt_rank=EXCLUDED.reduce_amt_rank, margin_force_rank=EXCLUDED.margin_force_rank, profit_float_rank=EXCLUDED.profit_float_rank, quality=EXCLUDED.quality, policy_json=EXCLUDED.policy_json, updated_at=now();
 -----END-SQL-----

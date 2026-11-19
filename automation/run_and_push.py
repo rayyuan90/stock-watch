@@ -105,7 +105,26 @@ def build_upsert_sql(ymd, d, raw, policy=None):
             "ON CONFLICT (ymd) DO UPDATE SET " + updates + ";")
 
 
+def _market_close_guard():
+    """盘中拒写守卫：交易日 15:05 前运行会产出「混合日」样本——
+    指数日线取上一交易日，而情绪/解禁/减持为当日盘中实时快照，
+    写入会覆盖上一交易日的正确收盘行且不可恢复。
+    周末/节假日快照与最近收盘自洽不拦；节假日落在周一~周五会被误拦，
+    可设环境变量 SKIP_MARKET_GUARD=1 显式绕过。"""
+    if os.environ.get("SKIP_MARKET_GUARD") == "1":
+        return
+    from datetime import datetime
+    now = datetime.now()
+    intraday = now.weekday() < 5 and (now.hour < 15 or (now.hour == 15 and now.minute < 5))
+    if intraday:
+        print(f"  ❌ 当前为交易日盘中({now:%Y-%m-%d %H:%M})，指数日线尚未更新当日，"
+              "慢变量已是盘中快照，写入会造成混合日污染，拒绝执行。")
+        print("     请在 15:05 之后运行；如确需盘中运行，设 SKIP_MARKET_GUARD=1。")
+        sys.exit(1)
+
+
 def main():
+    _market_close_guard()
     fr = fetch_latest(policy_stack=POLICY_TODAY)
     print_quality(fr)
 

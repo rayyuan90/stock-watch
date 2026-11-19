@@ -404,6 +404,25 @@ function loadAInputExt() {
         });
 }
 
+/** 读取港股底部研判的低频输入（公开表 hk_bottom_input，云端定时任务维护） */
+function loadHkBottomInput() {
+    if (!cloud) return unavailable();
+    return cloud.database.from('hk_bottom_input')
+        .select('as_of, report_quarter, narrative_quarter, manual, finance, south, trigger_reason, note, updated_at')
+        .eq('id', 1)
+        .maybeSingle()
+        .then(function (res) {
+            var err = pickError(res);
+            if (err) return { ok: false, data: null, error: err };
+            var row = res && res.data;
+            if (!row) return { ok: false, data: null, error: '云端暂无港股底部输入' };
+            return { ok: true, data: row, error: '' };
+        })
+        .catch(function (e) {
+            return { ok: false, data: null, error: (e && e.message) || '读取港股底部输入失败' };
+        });
+}
+
 /** 读取本地数据仓的云端副本（整包快照，兜底用） */
 function loadVaultBackup() {
     if (!cloud) return unavailable();
@@ -477,6 +496,7 @@ module.exports = {
     saveSigHist: saveSigHist,
     loadVaultBackup: loadVaultBackup,
     saveVaultBackup: saveVaultBackup,
+    loadHkBottomInput: loadHkBottomInput,
     loadAInputExt: loadAInputExt,
     signIn: signIn,
     signOut: signOut

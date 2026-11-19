@@ -289,6 +289,8 @@ Page({
         // 先用内置快照铺满界面，避免白屏或整屏 "--"
         this.render(snapshot.quotes, new Date(), '', true, snapshot.takenAt, '');
         this.start();
+        // 港股底部研判：异步拉实时数据（恒科日K/南向/财报）后自动重算
+        try { this.loadHkBottom(); } catch (e) { /* 不影响主流程 */ }
         this.hydrateFromCloud();
         this.syncWatchCloud();
     },
@@ -836,6 +838,8 @@ Page({
             hkTech.push(quoteRow(q[hb.sec], hb.name, hb.code));
         }
         var hkAnalysis = hktech.buildAnalysis(q);
+        // 港股底部研判：用已缓存的实时输入 + 当前报价重算（纯计算，跟着行情变）
+        var hkBottom = this.recalcHkBottom(q);
         // 明日实操验证面板：依赖实时行情 + 同刻量比基准，20 秒节流
         this.updateVerify(q, time);
         // 托管预览/H5 沙箱只允许 /cloud/ 请求，外部行情请求被整体拦截；
@@ -868,6 +872,7 @@ Page({
             hstechRow: quoteRow(hste, '恒生科技指数', 'HSTECH'),
             hkTech: hkTech,
             hkAnalysis: hkAnalysis,
+            hkBottom: hkBottom,
             korea: [
                 koreaRow(sk, 'SK海力士', '000660.KS'),
                 koreaRow(samsung, '三星电子', '005930.KS'),
@@ -978,6 +983,58 @@ Page({
             });
         }
         this.setData({ sigHistRows: rows, sigStats: sighist.stats(list) });
+    },
+
+    /* ---------- 港股底部研判：数据驱动（实时重算） ---------- */
+
+    /** 用已缓存的实时输入 + 云端低频输入 + 当前恒科报价重算研判（纯计算，每次 render 都跑） */
+    recalcHkBottom: function (q) {
+        var live = this._hkbLive || {};
+        var cloud = this._hkbCloud || {};
+        var hstechQuote = q && q[hktech.INDEX_SEC];
+        var quote = null;
+        if (hstechQuote && isFinite(Number(hstechQuote.price))) {
+            // q 里 price/low 已经 scaled 过，是真实点位，直接传
+            quote = { price: Number(hstechQuote.price), low: hstechQuote.low !== undefined && hstechQuote.low !== null ? Number(hstechQuote.low) : null };
+        }
+        // 实时优先，云端兜底：财报取实时缓存否则云端 finance；南向同理（数组优先，退聚合对象）
+        var finance = (live.finance && live.finance.reportType) ? live.finance : (cloud.finance || null);
+        var south = (Array.isArray(live.south) && live.south.length) ? live.south : (cloud.south || null);
+        return hkbottom.evaluate({
+            kline: live.kline,
+            south: south,
+            finance: finance,
+            quote: quote,
+            manual: cloud.manual || null
+        });
+    },
+
+    /** 并行：① 实时拉恒科日K/南向/财报 ② 读云端定时任务维护的低频输入，成功后重算 */
+    loadHkBottom: function () {
+        var self = this;
+        if (this._hkbLoading) return;
+        this._hkbLoading = true;
+        // 云端低频输入（manual/finance/south 兜底），失败不影响主流程
+        var cloudTask = (typeof cloudData.loadHkBottomInput === 'function')
+            ? cloudData.loadHkBottomInput().then(function (r) {
+                if (r && r.ok && r.data) self._hkbCloud = r.data;
+                return r;
+            }).catch(function () { return null; })
+            : Promise.resolve(null);
+        var liveTask = market.fetchHkBottomData();
+        return Promise.all([liveTask, cloudTask]).then(function (res) {
+            var d = res[0];
+            self._hkbLoading = false;
+            self._hkbLive = { kline: d.kline, south: d.south, finance: d.finance };
+            self._hkbFresh = d.fresh;
+            var last = self._lastRes;
+            self.setData({ hkBottom: self.recalcHkBottom(last ? last.quotes : null) });
+        }).catch(function () {
+            self._hkbLoading = false;
+        }).then(function () {
+            if (self._hkbTimer) clearTimeout(self._hkbTimer);
+            self._hkbTimer = setTimeout(function () { self.loadHkBottom(); }, 30 * 60 * 1000);
+        });
     },
 
     /* ---------- 港股底部研判：展开/折叠 + 信号分类切换 ---------- */

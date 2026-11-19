@@ -680,8 +680,101 @@ var DOMAINS = [
     { host: 'qt.gtimg.cn', label: '腾讯 · 韩股 / 三星', probe: 'https://qt.gtimg.cn/q=sh000001' },
     { host: 'web.ifzq.gtimg.cn', label: '腾讯 · A股日K备用', probe: 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,1,qfq' },
     { host: 'searchapi.eastmoney.com', label: '东方财富 · 标的搜索（自选添加）', probe: 'https://searchapi.eastmoney.com/api/suggest/get?input=510300&type=14&count=1' },
+    { host: 'datacenter-web.eastmoney.com', label: '东方财富 · 港股底部研判（南向资金/港股财报）', probe: 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY&columns=TRADE_DATE,NET_DEAL_AMT&filter=(MUTUAL_TYPE%3D%22006%22)&pageNumber=1&pageSize=1&sortTypes=-1&sortColumns=TRADE_DATE' },
     { host: 'mp-api.app.workbuddy.host', label: '云服务 · 快照与持仓', probe: 'https://mp-api.app.workbuddy.host/' }
 ];
+
+/* ==================================================================
+ * 港股底部研判 · 数据驱动输入
+ * 恒科日K（连跌/回撤/振幅）走已白名单的 push2his；
+ * 南向净买入 + 腾讯财报走 datacenter-web（需加入白名单，见 DOMAINS）。
+ * 三路各自独立容错 + 本地缓存兜底，任一失败都不影响其他路。
+ * ================================================================== */
+var HKB_CACHE_KEY = 'kanpan:hkbottomCache';
+var DC = 'https://datacenter-web.eastmoney.com/api/data/v1/get';
+
+function hkbCacheGet() {
+    try { return wx.getStorageSync(HKB_CACHE_KEY) || null; } catch (e) { return null; }
+}
+function hkbCacheSet(v) {
+    try { wx.setStorageSync(HKB_CACHE_KEY, v); } catch (e) { /* ignore */ }
+}
+
+/** 南向净买入历史（港股通合计 type=006，单位百万港元），返回按日期升序的净买入数组 */
+function fetchSouthboundHistory(days) {
+    var url = DC + '?reportName=RPT_MUTUAL_DEAL_HISTORY' +
+        '&columns=TRADE_DATE,NET_DEAL_AMT' +
+        '&filter=' + encodeURIComponent('(MUTUAL_TYPE="006")') +
+        '&pageNumber=1&pageSize=' + (days || 15) +
+        '&sortTypes=-1&sortColumns=TRADE_DATE';
+    return req({ url: url }).then(function (payload) {
+        var rows = ((payload && payload.result) || {}).data || [];
+        if (!rows.length) throw new Error('南向数据为空');
+        var out = [];
+        for (var i = 0; i < rows.length; i++) {
+            var v = rows[i].NET_DEAL_AMT;
+            if (v !== null && v !== undefined && isFinite(Number(v))) {
+                out.push({ date: String(rows[i].TRADE_DATE || '').slice(0, 10), val: Number(v) });
+            }
+        }
+        out.reverse(); // 接口按日期降序，转成升序
+        return out;
+    });
+}
+
+/** 腾讯最新季报主要指标（累计口径） */
+function fetchHKFinance(secucode) {
+    var code = secucode || '00700.HK';
+    var url = DC + '?reportName=RPT_HKF10_FN_MAININDICATOR' +
+        '&columns=ALL&filter=' + encodeURIComponent('(SECUCODE="' + code + '")') +
+        '&pageNumber=1&pageSize=1&sortTypes=-1&sortColumns=REPORT_DATE';
+    return req({ url: url }).then(function (payload) {
+        var rows = ((payload && payload.result) || {}).data || [];
+        if (!rows.length) throw new Error('财报数据为空');
+        var r = rows[0];
+        return {
+            reportType: r.REPORT_TYPE || '',
+            reportDate: (r.REPORT_DATE || '').slice(0, 10),
+            revenueYoy: scaled(r.OPERATE_INCOME_YOY, 0),
+            netMargin: scaled(r.NET_PROFIT_RATIO, 0),
+            operateCash: Number(r.NETCASH_OPERATE),
+            investCash: Number(r.NETCASH_INVEST)
+        };
+    });
+}
+
+/**
+ * 拉取港股底部研判的全部实时输入，返回 { quote, kline, south, finance, fresh }
+ * 每路独立容错；失败时回退到本地缓存（缓存里也没有就留空，由计算引擎用研报快照）。
+ */
+function fetchHkBottomData() {
+    var cached = hkbCacheGet() || {};
+    var result = { quote: null, kline: null, south: null, finance: null, fresh: false };
+    var tasks = [
+        // 恒科日K（含实时价，来自已白名单 push2his / 腾讯降级）
+        fetchKline('124.HSTECH', 75, 101).then(function (d) {
+            result.kline = d;
+            result.quote = { price: d.rows.length ? d.rows[d.rows.length - 1].close : null, low: d.rows.length ? d.rows[d.rows.length - 1].low : null };
+            return true;
+        }).catch(function () { result.kline = cached.kline || null; result.quote = cached.quote || null; return false; }),
+        // 拉 300 个交易日（约一年多），供资金底实时算本月/上月/YTD/去年同期累计
+        fetchSouthboundHistory(300).then(function (s) { result.south = s; return true; })
+            .catch(function () { result.south = cached.south || null; return false; }),
+        fetchHKFinance('00700.HK').then(function (f) { result.finance = f; return true; })
+            .catch(function () { result.finance = cached.finance || null; return false; })
+    ];
+    return Promise.all(tasks).then(function (oks) {
+        result.fresh = oks.some(function (x) { return !!x; });
+        if (result.fresh) {
+            hkbCacheSet({
+                ts: Date.now(),
+                kline: result.kline, quote: result.quote,
+                south: result.south, finance: result.finance
+            });
+        }
+        return result;
+    });
+}
 
 /** 把系统级报错翻译成人能看懂的话 */
 function friendly(msg) {
@@ -1333,6 +1426,7 @@ module.exports = {
     fetchAll: fetchAll,
     fetchTrends: fetchTrends,
     fetchKline: fetchKline,
+    fetchHkBottomData: fetchHkBottomData,
     fetchQuote: fetchQuote,
     searchSymbol: searchSymbol,
     resolveSymbol: resolveSymbol,
