@@ -18,9 +18,9 @@
     <view class="srcwarn" wx:if="{{warn}}">
         <view class="sw-l">
             <text class="sw-t">{{warn}}</text>
-            <text class="sw-s">需要在微信后台把 hq.sinajs.cn 加入 request 合法域名（临时可用右上角「…」→ 打开调试）</text>
+            <text class="sw-s" wx:if="{{warnHint}}">{{warnHint}}</text>
         </view>
-        <view class="sw-btn" bindtap="copyDomain">复制域名</view>
+        <view class="sw-btn" wx:if="{{warnDomain}}" bindtap="copyDomain">复制域名</view>
     </view>
 
     <view class="card" wx:for="{{groups}}" wx:key="key">

@@ -193,52 +193,120 @@ function getHeat(type, dir) {
  *   大户 = 大单（f72）
  *   散户 = 中单 + 小单（f78 + f84）
  */
+/** 把沪深两市四类资金原始值（元）汇总成页面结构 */
+function buildFlowOut(rows) {
+    // rows: [{name, main, inst, big, retail, ts}]
+    var sum = { main: 0, inst: 0, big: 0, retail: 0, ts: 0, parts: [] };
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        sum.main += r.main;
+        sum.inst += r.inst;
+        sum.big += r.big;
+        sum.retail += r.retail;
+        sum.ts = Math.max(sum.ts, r.ts || 0);
+        sum.parts.push({
+            name: r.name,
+            main: fmtFlow(r.main),
+            inst: fmtFlow(r.inst),
+            big: fmtFlow(r.big),
+            retail: fmtFlow(r.retail)
+        });
+    }
+    return {
+        ts: sum.ts,
+        updatedAt: clockOf(sum.ts),
+        items: [
+            { key: 'inst', label: '机构', sub: '超大单口径', val: sum.inst, dot: '#e2506a' },
+            { key: 'main', label: '主力', sub: '超大单+大单', val: sum.main, dot: '#e8a23c' },
+            { key: 'big', label: '大户', sub: '大单口径', val: sum.big, dot: '#4cc3c9' },
+            { key: 'retail', label: '散户', sub: '中单+小单', val: sum.retail, dot: '#6aa9e9' }
+        ],
+        parts: sum.parts
+    };
+}
+
+/** L2 降级：东财实时资金流曲线 stock/fflow/kline（与 ulist.np 同域名，但此路径当前未被限流）。
+ *  kline 最后一根即当日累计：f52=主力净, f53=小单, f54=中单, f55=大单, f56=超大单。
+ *  校验：f55+f56 == f52。分别拉沪深两市后汇总。 */
+function getFlowViaFflow() {
+    var secs = [
+        { sec: '1.000001', name: '上证指数' },
+        { sec: '0.399001', name: '深证成指' }
+    ];
+    var jobs = [];
+    for (var i = 0; i < secs.length; i++) {
+        (function (s) {
+            var url = EM + '/stock/fflow/kline/get?lmt=2&klt=1&secid=' + s.sec
+                + '&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56';
+            jobs.push(request(url).then(function (data) {
+                var klines = (data && data.data && data.data.klines) || [];
+                if (!klines.length) throw new Error('fflow 空');
+                var f = klines[klines.length - 1].split(',');
+                var n = function (x) { return isNaN(Number(x)) ? 0 : Number(x); };
+                // f52 主力, f53 小单, f54 中单, f55 大单, f56 超大单
+                var main = n(f[1]), small = n(f[2]), mid = n(f[3]), big = n(f[4]), superBig = n(f[5]);
+                // 优先用分项汇总主力（口径与页面“超大单+大单”一致），f52 作兜底校验
+                var mainCalc = superBig + big;
+                if (!mainCalc) mainCalc = main;
+                var when = String(f[0] || '').replace(/-/g, '/');
+                var ts = Date.now();
+                try { ts = new Date(when).getTime() || Date.now(); } catch (e) { /* ignore */ }
+                return {
+                    name: s.name,
+                    main: mainCalc,
+                    inst: superBig,
+                    big: big,
+                    retail: mid + small,
+                    ts: ts
+                };
+            }));
+        })(secs[i]);
+    }
+    return Promise.all(jobs).then(function (rows) {
+        return buildFlowOut(rows);
+    });
+}
+
+/** 三级降级：ulist.np → fflow kline → 缓存 */
 function getFlow() {
     var url = EM + '/ulist.np/get?fltt=2&invt=2&secids=1.000001,0.399001'
         + '&fields=f12,f14,f62,f66,f72,f78,f84,f124';
     return request(url).then(function (data) {
         var diff = data && data.data && data.data.diff;
         if (!diff || !diff.length) throw new Error('资金流数据为空');
-        var sum = { main: 0, inst: 0, big: 0, retail: 0, ts: 0, parts: [] };
+        var rows = [];
         for (var i = 0; i < diff.length; i++) {
             var d = diff[i];
-            var num = function (x) { return isNaN(Number(x)) ? 0 : Number(x); };
-            var main = num(d.f62), inst = num(d.f66), big = num(d.f72);
-            var mid = num(d.f78), small = num(d.f84);
-            sum.main += main;
-            sum.inst += inst;
-            sum.big += big;
-            sum.retail += mid + small;
-            sum.ts = Math.max(sum.ts, Number(d.f124) * 1000 || 0);
-            sum.parts.push({
+            var n = function (x) { return isNaN(Number(x)) ? 0 : Number(x); };
+            rows.push({
                 name: d.f14,
-                main: fmtFlow(main),
-                inst: fmtFlow(inst),
-                big: fmtFlow(big),
-                retail: fmtFlow(mid + small)
+                main: n(d.f62),
+                inst: n(d.f66),
+                big: n(d.f72),
+                retail: n(d.f78) + n(d.f84),
+                ts: Number(d.f124) * 1000 || 0
             });
         }
-        var out = {
-            ts: sum.ts,
-            updatedAt: clockOf(sum.ts),
-            items: [
-                { key: 'inst', label: '机构', sub: '超大单口径', val: sum.inst, dot: '#e2506a' },
-                { key: 'main', label: '主力', sub: '超大单+大单', val: sum.main, dot: '#e8a23c' },
-                { key: 'big', label: '大户', sub: '大单口径', val: sum.big, dot: '#4cc3c9' },
-                { key: 'retail', label: '散户', sub: '中单+小单', val: sum.retail, dot: '#6aa9e9' }
-            ],
-            parts: sum.parts
-        };
+        var out = buildFlowOut(rows);
+        out.source = 'realtime';
         writeCache(FLOW_CACHE_KEY, out);
         return out;
-    }).catch(function (e) {
-        var cached = readCache(FLOW_CACHE_KEY);
-        if (cached) {
-            cached.fromCache = true;
-            cached.updatedAt = (cached.updatedAt || '') + ' 缓存';
-            return cached;
-        }
-        throw e;
+    }).catch(function (e1) {
+        // L2：ulist.np 被限流时，走 fflow kline（同域名不同路径，当前可用）
+        return getFlowViaFflow().then(function (out) {
+            out.source = 'fflow';
+            writeCache(FLOW_CACHE_KEY, out);
+            return out;
+        }).catch(function (e2) {
+            // L3：缓存兜底
+            var cached = readCache(FLOW_CACHE_KEY);
+            if (cached) {
+                cached.fromCache = true;
+                cached.updatedAt = (cached.updatedAt || '') + ' 缓存';
+                return cached;
+            }
+            throw e1;
+        });
     });
 }
 

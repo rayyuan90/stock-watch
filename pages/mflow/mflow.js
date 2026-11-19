@@ -82,9 +82,14 @@ Page({
             });
         }).catch(function (e) {
             self._busy = false;
+            var emsg = ((e && e.message) || '');
+            // 东财接口偶发返回空（真机常见 -324 / ERR_EMPTY_RESPONSE），是服务端限流，不是域名问题
+            var tip = /EMPTY_RESPONSE|-324|request:fail|HTTP/i.test(emsg)
+                ? '行情源暂时无响应（接口限流），请下拉重试'
+                : '资金流暂时不可用：' + (emsg || '未知错误');
             self.setData({
-                stateText: '不可用',
-                offlineMsg: '资金流请求失败：' + ((e && e.message) || '未知错误')
+                stateText: '重试',
+                offlineMsg: tip
             });
         });
     }

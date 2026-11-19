@@ -193,6 +193,72 @@ function fetchSina(codes) {
     });
 }
 
+// 东财被限流返回空时，用新浪（已在 request 白名单）补齐。
+// 映射键是东财 secid 的短码（与回填逻辑 def.id.split('.')[1] 对齐）。
+// 注意：标普必须走 gb_$inx（7323），不能用 int_sp500（6643，口径错误）；
+//       纳指期货走 hf_NQ（期货对期货），不用 gb_$ndx（现货）。
+// 首尔综合(KS11)、恒生科技指数期货(HTI) 新浪无可靠对应源，保持缓存。
+var EM_SINA_MAP = {
+    N225:   { code: 'int_nikkei', fmt: 'int' },  // 日经225现货
+    SPX:    { code: 'gb_$inx',    fmt: 'gb'  },  // 标普500
+    NQ00Y:  { code: 'hf_NQ',      fmt: 'hf'  },  // 纳指100期货
+    GC00Y:  { code: 'hf_GC',      fmt: 'hf'  },  // COMEX黄金
+    SI00Y:  { code: 'hf_SI',      fmt: 'hf'  },  // COMEX白银
+    USDCNH: { code: 'fx_susdcnh', fmt: 'fx'  }   // 美元/离岸人民币
+};
+
+/** 按新浪字段格式解析出 price / pct */
+function parseSinaField(f, fmt) {
+    var price = null, pct = null;
+    try {
+        if (fmt === 'int') {          // 名称,现价,涨跌额,涨跌幅
+            price = num(f[1]); pct = num(f[3]);
+        } else if (fmt === 'gb') {    // 名称,现价,涨跌幅,时间,...
+            price = num(f[1]); pct = num(f[2]);
+        } else if (fmt === 'hf') {    // 现价,,买,卖,高,低,时间,昨收,...
+            price = num(f[0]); pct = pctOf(price, num(f[7]));
+        } else if (fmt === 'fx') {    // 时间,...,现价@8,...,名称,涨跌幅@10,...
+            price = num(f[8]); pct = num(f[10]);
+        }
+    } catch (e) { /* ignore */ }
+    return { price: price, pct: pct };
+}
+
+/** 东财失败时的新浪降级：missingIds 是东财 secid 数组，返回按短码索引的 quotes */
+function fetchEmFromSina(missingIds) {
+    var codes = [], pairs = [];
+    for (var i = 0; i < missingIds.length; i++) {
+        var short = String(missingIds[i]).split('.')[1];
+        var map = EM_SINA_MAP[short];
+        if (map) { codes.push(map.code); pairs.push({ short: short, map: map }); }
+    }
+    if (!codes.length) return Promise.resolve({ ok: false, quotes: {}, got: 0 });
+    var header = { Referer: 'https://finance.sina.com.cn' };
+    return req(SINA_URL + codes.join(','), header).then(function (res) {
+        if (!res.ok) return { ok: false, quotes: {}, got: 0 };
+        var text = String(res.data || '');
+        if (text.indexOf('hq_str_') < 0) return { ok: false, quotes: {}, got: 0 };
+        var lines = text.split('\n');
+        var parsed = {};
+        for (var i = 0; i < lines.length; i++) {
+            var p = lines[i].indexOf('hq_str_');
+            var q = lines[i].indexOf('="');
+            if (p < 0 || q < 0) continue;
+            parsed[lines[i].slice(p + 7, q)] = lines[i].slice(q + 2, lines[i].lastIndexOf('"')).split(',');
+        }
+        var quotes = {}, got = 0;
+        for (var j = 0; j < pairs.length; j++) {
+            var f = parsed[pairs[j].map.code];
+            if (!f) continue;
+            var v = parseSinaField(f, pairs[j].map.fmt);
+            if (v.price === null) continue;
+            quotes[pairs[j].short] = { price: v.price, pct: v.pct, prev: null, name: '', at: Date.now() };
+            got++;
+        }
+        return { ok: got > 0, quotes: quotes, got: got };
+    });
+}
+
 function readCache() {
     try {
         var raw = wx.getStorageSync(CACHE_KEY);
@@ -298,11 +364,26 @@ function decorate(freshQuotes, srcState, cache, notes) {
     }
 
     var warn = '';
-    if (!srcState.em && !srcState.tx && !srcState.sina) warn = '行情源全部不可用，显示的是本地缓存';
-    else if (!srcState.sina) warn = '新浪财经（hq.sinajs.cn）未放行，日经/VIX 期货暂无实时值';
-    else if (!srcState.em) warn = '东方财富源异常，部分标的回落缓存';
+    var warnHint = '';
+    var warnDomain = '';
+    if (!srcState.em && !srcState.tx && !srcState.sina) {
+        warn = '行情源暂时都不可用，显示的是本地缓存';
+        warnHint = '稍后下拉重试；临时查看可点右上角「…」→ 打开调试';
+    } else if (!srcState.em) {
+        // 东财偶发返回空（真机常见 -324 ERR_EMPTY_RESPONSE），并非域名未加
+        warn = '东方财富源暂时无响应，部分标的回落缓存';
+        warnHint = '接口偶发为空，下拉重试即可；如一直如此再检查 push2.eastmoney.com 是否在 request 合法域名';
+        warnDomain = 'push2.eastmoney.com';
+    } else if (!srcState.sina) {
+        warn = '新浪财经暂无响应，日经/VIX 期货回落缓存';
+        warnHint = '如一直如此再检查 hq.sinajs.cn 是否在 request 合法域名';
+        warnDomain = 'hq.sinajs.cn';
+    } else if (!srcState.tx) {
+        warn = '腾讯行情暂无响应，个别标的回落缓存';
+        warnHint = '下拉重试即可';
+    }
 
-    return { groups: groups, warn: warn, ts: Date.now(), clock: clockOf(Date.now()) };
+    return { groups: groups, warn: warn, warnHint: warnHint, warnDomain: warnDomain, ts: Date.now(), clock: clockOf(Date.now()) };
 }
 
 /**
@@ -337,6 +418,32 @@ function fetchAll() {
         var em = res[0] || { ok: false, quotes: {} };
         var tx = res[1] || { ok: false, quote: null };
         var sina = res[2] || { ok: false, quotes: {} };
+        // 东财被限流返回空时，用新浪补齐能覆盖的标的（含标普/纳指期货/黄金/白银/日经/汇率）。
+        // 降级拿到的项打上 notes 标记，界面显示来源；em 只要部分恢复就不再误报黄条。
+        var fbIds = [];
+        for (var z = 0; z < ITEMS.length; z++) {
+            var zd = ITEMS[z];
+            if (zd.src !== 'em' || !zd.id) continue;
+            var zShort = zd.id.split('.')[1];
+            if (EM_SINA_MAP[zShort] && !em.quotes[zShort]) fbIds.push(zd.id);
+        }
+        var fbPromise = (!em.ok && fbIds.length)
+            ? fetchEmFromSina(fbIds)
+            : Promise.resolve({ ok: false, quotes: {}, got: 0 });
+        return fbPromise.then(function (fb) {
+        var emViaSina = 0;
+        if (fb && fb.got > 0) {
+            for (var fqk in fb.quotes) {
+                if (fb.quotes.hasOwnProperty(fqk)) em.quotes[fqk] = fb.quotes[fqk];
+            }
+            em.ok = true;
+            emViaSina = fb.got;
+            for (var zn = 0; zn < ITEMS.length; zn++) {
+                if (ITEMS[zn].src === 'em' && ITEMS[zn].id && fb.quotes[ITEMS[zn].id.split('.')[1]]) {
+                    notes[ITEMS[zn].key] = '新浪源';
+                }
+            }
+        }
 
         var fresh = {};
         // 东财：按 f12 代码回填
@@ -412,6 +519,7 @@ function fetchAll() {
         var out = decorate(fresh, state, { ts: mergedCache.ts, quotes: cache.quotes }, notes);
         out.cacheOnly = !em.ok && !tx.ok && !sina.ok;
         return out;
+        });
     }).catch(function (e) {
         var cache2 = readCache();
         var out2 = decorate({}, { em: false, tx: false, sina: false }, cache2);

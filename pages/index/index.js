@@ -99,6 +99,14 @@ function priceText(q) {
     return fmt.fixed(q.price, q.digits);
 }
 
+// 港股科技板块默认展示的核心标的；BASKET 里其余标的点击「更多」后才展示
+var HK_TECH_PRIMARY = {
+    '116.00700': 1, // 腾讯控股
+    '116.09988': 1, // 阿里巴巴-W
+    '116.09888': 1, // 百度集团-W
+    '116.01810': 1  // 小米集团-W
+};
+
 function quoteRow(q, fallbackName, fallbackCode) {
     var name = (q && q.name) || fallbackName;
     var code = (q && q.code) || fallbackCode;
@@ -219,6 +227,7 @@ Page({
         holdings: [],
         hstechRow: null,
         hkTech: [],
+        hkTechExpanded: false,
         hkAnalysis: null,
         hkBottom: hkbottom.build(),
         hkBottomOpen: false,
@@ -659,30 +668,41 @@ Page({
             { key: '103.NQ00Y', label: 'NQ', desc: '纳指期货', spot: null }
         ];
 
+        var snapQuotes = (snapshot && snapshot.quotes) || {};
         var futures = [];
         var futRelSum = 0;
         var futRelCount = 0;
         for (var i = 0; i < futDefs.length; i++) {
             var def = futDefs[i];
             var f = q[def.key];
+            var futCached = false;
+            // 中金所/纳指期货走东财，接口限流时腾讯无备用源：回落静态快照并标注，避免整屏 --
+            if (!f || !fmt.isNum(f.price)) {
+                var sf = snapQuotes[def.key];
+                if (sf && fmt.isNum(sf.price)) {
+                    f = sf;
+                    futCached = true;
+                }
+            }
             var spot = def.spot;
             var basis = null;
             var basisPct = null;
             if (f && spot && fmt.isNum(f.price) && fmt.isNum(spot.price) && spot.price > 0) {
                 basis = f.price - spot.price;
                 basisPct = (basis / spot.price) * 100;
-                if (fmt.isNum(f.pct) && fmt.isNum(spot.pct)) {
+                // 缓存快照不参与实时相对强度，避免旧值污染信号
+                if (!futCached && fmt.isNum(f.pct) && fmt.isNum(spot.pct)) {
                     futRelSum += (Number(f.pct) - Number(spot.pct));
                     futRelCount++;
                 }
             }
             futures.push({
                 label: def.label,
-                desc: def.desc,
+                desc: def.desc + (futCached ? ' · 缓存' : ''),
                 sec: def.key,
                 priceText: priceText(f),
                 pctText: f && fmt.isNum(f.pct) ? fmt.pct(f.pct) : '--',
-                cls: fmt.cls(f && f.pct),
+                cls: futCached ? 'flat' : fmt.cls(f && f.pct),
                 basisText: basis === null
                     ? '--'
                     : (basis <= 0 ? '贴水 ' : '升水 ') + fmt.fixed(Math.abs(basis), 1) + ' 点',
@@ -783,13 +803,18 @@ Page({
             watchRows.push(watchRow(q[watchSrc[wi].sec], watchSrc[wi]));
         }
 
-        // A 股量能：沪市(1.000001) + 深市(0.399001) 实时总额 vs 昨日同一时段累计
+        // A 股量能：今日累计 vs 昨日同一时段累计。
+        // 分子分母必须同口径：都取 flowBase（新浪K线，沪+深两市成交额加总），
+        // 不用腾讯实时 amount——那是"沪市全市场 vs 深证成指"混合口径，且指数点位×手数会算出天文数字。
         var szm = q['0.399001'];
+        var base = this._flowBase;
+        var tp = timeProgressPct(time);
         var aFlow = null;
-        if (sh && fmt.isNum(sh.amount) && szm && fmt.isNum(szm.amount)) {
-            var todayAmt = sh.amount + szm.amount;
-            var base = this._flowBase;
-            var tp = timeProgressPct(time);
+        // 今日累计：优先新浪同口径值；基准未就绪时临时用腾讯两市实时额兜底（仅展示，不参与同比）
+        var todayAmt = (base && fmt.isNum(base.todayTotal) && base.todayTotal > 0)
+            ? base.todayTotal
+            : ((sh && fmt.isNum(sh.amount) && szm && fmt.isNum(szm.amount)) ? sh.amount + szm.amount : null);
+        if (fmt.isNum(todayAmt) && todayAmt > 0) {
             var weekend = time.getDay() === 0 || time.getDay() === 6;
             var slot = market.slotIndexNow(time);
             var baseAmt = null;    // 参与同刻比值的基准
@@ -811,7 +836,9 @@ Page({
                 }
             }
             var baseDate = base ? String(base.prevDate || '').slice(5, 10) : '';
-            var ratio = (baseAmt && baseAmt > 0) ? todayAmt / baseAmt : null;
+            // 只有分子分母都来自同一份新浪基准时才算同比，避免混口径得出离谱倍数
+            var sameSource = !!(base && fmt.isNum(base.todayTotal) && base.todayTotal > 0 && baseAmt && baseAmt > 0);
+            var ratio = sameSource ? todayAmt / baseAmt : null;
             aFlow = {
                 todayText: fmt.amount(todayAmt),
                 baseLabel: baseLabel + (baseDate ? ' ' + baseDate : ''),
@@ -838,7 +865,9 @@ Page({
         var hkTech = [];
         for (var hk = 0; hk < hktech.BASKET.length; hk++) {
             var hb = hktech.BASKET[hk];
-            hkTech.push(quoteRow(q[hb.sec], hb.name, hb.code));
+            var hkRow = quoteRow(q[hb.sec], hb.name, hb.code);
+            hkRow.primary = !!HK_TECH_PRIMARY[hb.sec];
+            hkTech.push(hkRow);
         }
         var hkAnalysis = hktech.buildAnalysis(q);
         // 港股底部研判：用已缓存的实时输入 + 当前报价重算（纯计算，跟着行情变）
@@ -1054,6 +1083,10 @@ Page({
             saved[key] = next;
             wx.setStorageSync(COLLAPSE_KEY, saved);
         } catch (e) { /* ignore */ }
+    },
+
+    toggleHkTechMore: function () {
+        this.setData({ hkTechExpanded: !this.data.hkTechExpanded });
     },
 
     toggleHkBottom: function () {

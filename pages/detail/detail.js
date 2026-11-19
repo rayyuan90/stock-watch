@@ -448,15 +448,22 @@ Page({
         var AXIS_W = 34;
         var VOL_H = Math.round(this._ch * 0.22);
         var priceH = this._ch - VOL_H - 24;
+        var plotW = this._cw - AXIS_W - 8;
+        var n = Math.max(1, rows.length);
+        // 每根K线宽度设上限（24px），避免降级源只给1根时蜡烛/成交量撑满全屏；少根时水平居中
+        var barW = Math.min(plotW / n, 24);
+        var barOffset = (plotW - barW * n) / 2;
         return {
             left: AXIS_W,
             right: this._cw - 8,
-            plotW: this._cw - AXIS_W - 8,
+            plotW: plotW,
             priceTop: 6,
             priceH: priceH,
             volTop: this._ch - VOL_H - 16,
             volH: VOL_H,
             axisW: AXIS_W,
+            barW: barW,
+            barOffset: barOffset,
             rows: rows
         };
     },
@@ -488,7 +495,8 @@ Page({
             if (rows[i].vol > maxVol) maxVol = rows[i].vol;
         }
         if (maxVol <= 0) return;
-        var bw = L.plotW / rows.length;
+        var bw = L.barW;
+        var offX = L.barOffset || 0;
         for (var j = 0; j < rows.length; j++) {
             var r = rows[j];
             var h = Math.max(1, r.vol / maxVol * L.volH);
@@ -496,7 +504,7 @@ Page({
                 ? j === 0 || r.close >= rows[Math.max(0, j - 1)].close
                 : r.price >= rows[Math.max(0, j - 1)].price;
             ctx.fillStyle = up ? 'rgba(255,107,109,0.5)' : 'rgba(47,214,124,0.5)';
-            ctx.fillRect(L.left + j * bw, L.volTop + L.volH - h, Math.max(1, bw - (bw > 3 ? 1 : 0)), h);
+            ctx.fillRect(L.left + offX + j * bw, L.volTop + L.volH - h, Math.max(1, bw - (bw > 3 ? 1 : 0)), h);
         }
         ctx.fillStyle = AXIS;
         ctx.font = '9px sans-serif';
@@ -622,9 +630,9 @@ Page({
         var yOf = function (p) {
             return L.priceTop + (maxP - p) / (maxP - minP) * L.priceH;
         };
-        var bw = L.plotW / rows.length;
+        var bw = L.barW;
         var xOf = function (i) {
-            return L.left + (i + 0.5) * bw;
+            return L.left + L.barOffset + (i + 0.5) * bw;
         };
 
         var ctx = this._ctx;

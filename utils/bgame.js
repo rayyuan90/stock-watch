@@ -635,7 +635,10 @@ function loadAGame() {
         market.fetchBars('0.399001', 101, 46)
     ]).then(function (res) {
         var sh = res[0], sz = res[1];
-        if (sh.length < 25 || sz.length < 25) throw new Error('日K数据不足');
+        // 模型真实下限是 22 根（classifyAt 需 i>=21，即至少 22 个交易日；状态机
+        // 与下方量能不足提示也写的是 22）。此前误写 25：东财正常给 46 根无影响，
+        // 但东财被限流走新浪降级时新浪最多只给 22 根，导致误判"日K数据不足"。
+        if (sh.length < 22 || sz.length < 22) throw new Error('日K数据不足');
 
         // 对齐日期（两者交易日一致）
         var n = Math.min(sh.length, sz.length);

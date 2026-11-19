@@ -4,12 +4,12 @@
     <view class="topbar">
         <view class="tb-left">
             <text class="tb-title">A 股量能</text>
-            <text class="tb-sub">沪深两市 · 上证指数 + 深证成指口径</text>
+            <text class="tb-sub">沪深两市 · 沪市全市场 + 深证成指口径</text>
         </view>
         <text class="clock num">{{updatedAt}}</text>
     </view>
 
-    <view class="err" wx:if="{{flowErr || barsErr}}">{{flowErr || barsErr}}，请检查网络或域名白名单</view>
+    <view class="err" wx:if="{{flowErr || barsErr}}">{{flowErr || barsErr}}，正在尝试备用数据源</view>
 
     <view class="card" wx:if="{{head}}">
         <view class="head-row">
@@ -59,7 +59,7 @@
 
     <view class="card">
         <view class="sec-head">
-            <text class="sec-label">近 60 日成交额</text>
+            <text class="sec-label">近 {{barDays}} 日成交额</text>
             <text class="sec-note">涨红 / 跌绿 · 金线为 5 日均量</text>
         </view>
 
@@ -80,7 +80,7 @@
     </view>
 
     <view class="foot">
-        <text>两市口径：上证指数 + 深证成指成交额加总</text>
+        <text>两市口径：沪市全市场 + 深证成指成交额加总</text>
         <text>分时对比按 5 分钟对齐，今日线只画到最新时段</text>
     </view>
 

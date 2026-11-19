@@ -26,6 +26,7 @@ Page({
         loading: true,
         flowErr: '',
         barsErr: '',
+        barDays: 60,
         updatedAt: '--:--:--',
         head: null,
         flowCross: null,
@@ -134,7 +135,7 @@ Page({
         var self = this;
         return market.fetchDailyFlow(BARS).then(function (rows) {
             self._daily = rows;
-            self.setData({ barsErr: '' });
+            self.setData({ barsErr: '', barDays: rows.length });
             self.drawBars();
             return rows;
         }).catch(function (e) {

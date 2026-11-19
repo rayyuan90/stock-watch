@@ -374,6 +374,14 @@
     color: #3d4854;
 }
 
+/* ---------- 港股科技板块 · 更多/收起 ---------- */
+.hk-more {
+    text-align: center;
+    padding: 14rpx 0 4rpx;
+    font-size: 21rpx;
+    color: #6c9bff;
+}
+
 /* ---------- 港股科技板块 · 次日倾向子面板 ---------- */
 .hk-sub {
     margin-top: 22rpx;

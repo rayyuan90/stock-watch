@@ -46,7 +46,7 @@
                 <text class="fold-arrow">{{collapsed.hkTech ? '展开 ▼' : '收起 ▲'}}</text>
                 <text class="sec-label">港股科技板块</text>
             </view>
-            <text class="sec-note">恒科指数 · 14 只核心标的 · 点行看日K分时</text>
+            <text class="sec-note">恒科指数 · 默认 5 只 · 点行看日K分时</text>
         </view>
 
         <view class="module-body" hidden="{{collapsed.hkTech}}">
@@ -61,7 +61,7 @@
             </view>
         </view>
 
-        <view class="row tap" wx:for="{{hkTech}}" wx:key="code" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
+        <view class="row tap" wx:for="{{hkTech}}" wx:key="code" wx:if="{{item.primary || hkTechExpanded}}" bindtap="goDetail" data-sec="{{item.sec}}" data-name="{{item.name}}">
             <view class="row-l">
                 <text class="row-name">{{item.name}}</text>
                 <text class="row-code num">{{item.code}} · 港元</text>
@@ -70,6 +70,10 @@
                 <text class="row-price num {{item.cls}}">{{item.priceText}}</text>
                 <text class="row-pct num {{item.cls}}">{{item.pctText}}</text>
             </view>
+        </view>
+
+        <view class="hk-more" bindtap="toggleHkTechMore">
+            <text>{{hkTechExpanded ? '收起 ▲' : '更多 ▼'}}</text>
         </view>
 
         <view class="hk-sub" wx:if="{{hkAnalysis}}">

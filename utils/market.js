@@ -278,6 +278,16 @@ function mergeTxQuotes(text, byCode, out) {
         if (sec && p.length > 34) {
             var price = txNum(p[3]);
             var vol = txNum(p[6]);
+            // 腾讯 p[35] = "价格/成交量/成交额(元)"，直接取真实成交额（指数/个股通用）。
+            // 绝不用的 量×价×100 估算：对指数(点位×手数)会算出天文数字（如 667 万亿）。
+            var txAmount = null;
+            if (p[35] && String(p[35]).indexOf('/') >= 0) {
+                var ap = String(p[35]).split('/');
+                if (ap.length >= 3) {
+                    var av = txNum(ap[2]);
+                    if (av !== null && av > 0) txAmount = av;
+                }
+            }
             // 腾讯返回 GBK 编码，小程序按 UTF-8 解码中文会变乱码（U+FFFD）；
             // 数字字段不受影响，名称置空后页面自动回退到自选配置里的名字
             var nm = p[1] || '';
@@ -294,10 +304,12 @@ function mergeTxQuotes(text, byCode, out) {
                 pct: txNum(p[32]),
                 change: txNum(p[31]),
                 volume: vol,
-                // 腾讯的成交额字段位置各市场不一，直接用 量×价 估算（A股手×100股）；
-                // 指数（100.NDX 等）的成交量不适用量×价，置空
-                amount: (price !== null && vol !== null && String(sec).indexOf('100.') !== 0)
-                    ? vol * price * (/^(sh|sz)/.test(txCode) ? 100 : 1) : null,
+                // 成交额：优先用腾讯 p[35] 真实值；无该字段时才回退估算，
+                // 且指数（100.NDX 等）不用量×价（点位×手数会爆炸），直接置空。
+                amount: txAmount !== null
+                    ? txAmount
+                    : ((price !== null && vol !== null && String(sec).indexOf('100.') !== 0)
+                        ? vol * price * (/^(sh|sz)/.test(txCode) ? 100 : 1) : null),
                 high: txNum(p[33]),
                 low: txNum(p[34]),
                 open: txNum(p[5]),
@@ -695,6 +707,8 @@ function fetchAll() {
 var TRENDS_URL = 'https://push2.eastmoney.com/api/qt/stock/trends2/get';
 // 日K只有 push2his 有真实数据
 var KLINE_URL = 'https://push2his.eastmoney.com/api/qt/stock/kline/get';
+// 新浪K线备用源（带真实成交额，东财 push2his 限流时降级用；5分钟线口径与两市实时一致）
+var SINA_KLINE_URL = 'https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData';
 // A股日K备用源（腾讯）
 var TX_KLINE_URL = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get';
 // 东财涨停池/炸板池（ASFMM-A v2 情绪层真数据）
@@ -711,6 +725,8 @@ var DOMAINS = [
     { host: 'web.ifzq.gtimg.cn', label: '腾讯 · A股日K备用', probe: 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,1,qfq' },
     { host: 'searchapi.eastmoney.com', label: '东方财富 · 标的搜索（自选添加）', probe: 'https://searchapi.eastmoney.com/api/suggest/get?input=510300&type=14&count=1' },
     { host: 'datacenter-web.eastmoney.com', label: '东方财富 · 港股底部研判（南向资金/港股财报）', probe: 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_MUTUAL_DEAL_HISTORY&columns=TRADE_DATE,NET_DEAL_AMT&filter=(MUTUAL_TYPE%3D%22006%22)&pageNumber=1&pageSize=1&sortTypes=-1&sortColumns=TRADE_DATE' },
+    { host: 'hq.sinajs.cn', label: '新浪财经 · 全球市场（日经期货 / VIX 期货）', probe: 'https://hq.sinajs.cn/list=hf_NK' },
+    { host: 'quotes.sina.cn', label: '新浪财经 · A股量能K线备用（成交额）', probe: 'https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData?symbol=sh000001&scale=5&ma=no&datalen=1' },
     { host: 'mp-api.app.workbuddy.host', label: '云服务 · 快照与持仓', probe: 'https://mp-api.app.workbuddy.host/' }
 ];
 
@@ -1192,6 +1208,78 @@ function fetchBarsEm(sec, klt, lmt) {
     });
 }
 
+/** 东财 secid -> 新浪 code：1.000001 -> sh000001, 0.399001 -> sz399001 */
+function toSinaCode(sec) {
+    var s = String(sec || '');
+    // 口径对齐：东财/腾讯的 399001(深证成指) 成交额字段给的是"深市全市场总成交额"(~6682亿)，
+    // 但新浪 sz399001 给的是深证成指"成分股"成交额(~3343亿)，差一倍。
+    // 量能统一采用「沪市全市场 + 深市全市场」混合口径，故深市在新浪侧改拉深证综指 sz399106。
+    if (s === '0.399001') return 'sz399106';
+    var m = s.match(/^([01])\.(\d{6})$/);
+    if (!m) return null;
+    return (m[1] === '1' ? 'sh' : 'sz') + m[2];
+}
+
+/**
+ * 新浪K线（带真实成交额）。新浪 datalen 上限 1023 根：
+ *  - 分时(非日K)：scale=5，覆盖约 22 日，够当日 vs 昨日对比；
+ *  - 日K(klt=101)：scale=15，1023 根覆盖约 64 个交易日，聚合后能满额供给
+ *    ASFMM-A 多空博弈(需46根)和量能柱状图(需60根)。两种周期成交额口径一致
+ *    （实测最新日累计均为 6369.1 亿）。
+ */
+function fetchBarsSina(sec, klt, lmt) {
+    var code = toSinaCode(sec);
+    if (!code) return Promise.reject(new Error('新浪源不支持该标的'));
+    var isDay = Number(klt) === 101;
+    var scale = isDay ? 15 : 5;
+    var want = isDay ? 1023 : Math.min(Number(lmt) || 60, 1023);
+    var url = SINA_KLINE_URL + '?symbol=' + code + '&scale=' + scale + '&ma=no&datalen=' + want;
+    return req({ url: url, timeout: 12000 }).then(function (list) {
+        if (!list || !list.length) throw new Error('新浪K线为空');
+        var rows = [];
+        for (var i = 0; i < list.length; i++) {
+            var it = list[i];
+            rows.push({
+                time: it.day,
+                open: Number(it.open),
+                close: Number(it.close),
+                high: Number(it.high),
+                low: Number(it.low),
+                vol: Number(it.volume),
+                amount: Number(it.amount) || 0
+            });
+        }
+        // 日K：把5分钟聚合成日线，成交额按日求和（真实值，不用成交量冒充）
+        if (Number(klt) === 101) rows = aggregateDayBars(rows);
+        rows.source = '新浪';
+        return rows;
+    });
+}
+
+/** 5分钟 bars 聚合成日 bars：OHLC 取首末/高低，amount/vol 按日求和 */
+function aggregateDayBars(rows) {
+    var map = {};
+    var order = [];
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var day = String(r.time).slice(0, 10);
+        if (!map[day]) {
+            map[day] = { time: day, open: r.open, close: r.close, high: r.high, low: r.low, vol: 0, amount: 0 };
+            order.push(day);
+        } else {
+            var d = map[day];
+            d.close = r.close;
+            if (r.high > d.high) d.high = r.high;
+            if (r.low < d.low) d.low = r.low;
+        }
+        map[day].vol += r.vol || 0;
+        map[day].amount += r.amount || 0;
+    }
+    var out = [];
+    for (var j = 0; j < order.length; j++) out.push(map[order[j]]);
+    return out;
+}
+
 function fetchBars(sec, klt, lmt) {
     var cacheKey = sec + '_' + klt;
     return fetchBarsEm(sec, klt, lmt).then(function (rows) {
@@ -1199,43 +1287,49 @@ function fetchBars(sec, klt, lmt) {
         return rows;
     }).catch(function (e) {
         var emMsg = friendly(e && e.message);
-        // 降级1：腾讯日K（A股走 fqkline，美股指数走 usfqkline；腾讯不给A股历史成交额）
-        if (Number(klt) === 101) {
-            var txTry = toTxCode(sec)
-                ? fetchKlineTx(sec, lmt || 60)
-                : fetchKlineTxUs(sec, lmt || 60);
-            return txTry.then(function (out) {
-                var rows = [];
-                for (var i = 0; i < out.rows.length; i++) {
-                    var r = out.rows[i];
-                    rows.push({
-                        time: r.date,
-                        open: r.open, close: r.close, high: r.high, low: r.low,
-                        vol: r.vol,
-                        amount: 0
-                    });
-                }
-                rows.amountMissing = true;
-                rows.source = '腾讯';
-                saveBarsCache(cacheKey, rows);
-                return rows;
-            }).catch(function () {
-                // 降级2：本地缓存（东财最近一次成功的数据）
-                var hit = loadBarsCache(cacheKey);
-                if (!hit) throw new Error(emMsg);
-                var rows = hit.rows.slice(-(lmt || 60));
-                rows.stale = true;
-                rows.source = '缓存' + Math.round((Date.now() - hit.ts) / 3600000) + '小时前';
-                return rows;
-            });
-        }
-        // 非日K：只走缓存
-        var hit = loadBarsCache(cacheKey);
-        if (!hit) throw new Error(emMsg);
-        var rows5 = hit.rows.slice(-(lmt || 60));
-        rows5.stale = true;
-        rows5.source = '缓存';
-        return rows5;
+        // 降级1：新浪（5分钟线 / 日K聚合，均带真实成交额，口径与两市实时一致）
+        return fetchBarsSina(sec, klt, lmt).then(function (rows) {
+            saveBarsCache(cacheKey, rows);
+            return rows;
+        }).catch(function () {
+            // 降级2：腾讯日K（A股走 fqkline，美股指数走 usfqkline；腾讯不给A股历史成交额）
+            if (Number(klt) === 101) {
+                var txTry = toTxCode(sec)
+                    ? fetchKlineTx(sec, lmt || 60)
+                    : fetchKlineTxUs(sec, lmt || 60);
+                return txTry.then(function (out) {
+                    var rows = [];
+                    for (var i = 0; i < out.rows.length; i++) {
+                        var r = out.rows[i];
+                        rows.push({
+                            time: r.date,
+                            open: r.open, close: r.close, high: r.high, low: r.low,
+                            vol: r.vol,
+                            amount: 0
+                        });
+                    }
+                    rows.amountMissing = true;
+                    rows.source = '腾讯';
+                    saveBarsCache(cacheKey, rows);
+                    return rows;
+                }).catch(function () {
+                    // 降级3：本地缓存（东财/新浪最近一次成功的数据）
+                    var hit = loadBarsCache(cacheKey);
+                    if (!hit) throw new Error(emMsg);
+                    var rows = hit.rows.slice(-(lmt || 60));
+                    rows.stale = true;
+                    rows.source = '缓存' + Math.round((Date.now() - hit.ts) / 3600000) + '小时前';
+                    return rows;
+                });
+            }
+            // 非日K：只走缓存
+            var hit = loadBarsCache(cacheKey);
+            if (!hit) throw new Error(emMsg);
+            var rows5 = hit.rows.slice(-(lmt || 60));
+            rows5.stale = true;
+            rows5.source = '缓存';
+            return rows5;
+        });
     });
 }
 
